@@ -1,0 +1,101 @@
+{
+  "demo_user": {
+    "email": "alex.morgan@student.edu",
+    "full_name": "Alex Morgan",
+    "password": "StudyAI@2025"
+  },
+  "tasks": [
+    {
+      "title": "Physics Mechanics Final Exam",
+      "subject": "Physics",
+      "description": "Comprehensive exam covering Newton's laws, kinematics, rotational motion, and energy conservation. Room: Hall B, Seat 42.",
+      "task_type": "exam",
+      "due_days_from_now": 2,
+      "estimated_hours": 8.0,
+      "exam_room": "Hall B",
+      "exam_duration_minutes": 180
+    },
+    {
+      "title": "CS Data Structures Project",
+      "subject": "Computer Science",
+      "description": "Implement a balanced BST with insertion, deletion, and traversal. Submit on GitHub with README and time-complexity analysis.",
+      "task_type": "project",
+      "due_days_from_now": 1,
+      "estimated_hours": 6.0,
+      "grade_weight": 20.0
+    },
+    {
+      "title": "Chemistry Organic Reactions Quiz",
+      "subject": "Chemistry",
+      "description": "Quiz covering SN1/SN2 reactions, addition reactions, and elimination mechanisms from chapters 8–11.",
+      "task_type": "quiz",
+      "due_days_from_now": 3,
+      "estimated_hours": 3.0
+    },
+    {
+      "title": "Calculus II Problem Set 7",
+      "subject": "Mathematics",
+      "description": "Problems on integration by parts, partial fractions, and trigonometric substitution. 20 problems — show all working.",
+      "task_type": "assignment",
+      "due_days_from_now": 4,
+      "estimated_hours": 4.0,
+      "grade_weight": 8.0
+    },
+    {
+      "title": "History Essay: Industrial Revolution",
+      "subject": "History",
+      "description": "2500-word analytical essay on the socioeconomic impacts of the Industrial Revolution in Britain (1760–1840). Primary sources required.",
+      "task_type": "assignment",
+      "due_days_from_now": 7,
+      "estimated_hours": 5.0,
+      "grade_weight": 15.0
+    },
+    {
+      "title": "Biology Cell Biology Mid-Term",
+      "subject": "Biology",
+      "description": "Mid-term covering cell structure, mitosis, meiosis, and cell signalling pathways. Open to chapter 1–6 of Campbell Biology.",
+      "task_type": "exam",
+      "due_days_from_now": 9,
+      "estimated_hours": 7.0,
+      "exam_room": "Science Block C",
+      "exam_duration_minutes": 120
+    },
+    {
+      "title": "English Literature Reading: Hamlet",
+      "subject": "English",
+      "description": "Read Acts 3–5 of Hamlet and annotate for class discussion. Focus on themes of revenge, madness, and mortality.",
+      "task_type": "reading",
+      "due_days_from_now": 5,
+      "estimated_hours": 2.5
+    },
+    {
+      "title": "Economics Demand & Supply Homework",
+      "subject": "Economics",
+      "description": "Practice problems on price elasticity, market equilibrium, and consumer surplus. Textbook Ch. 4 exercises 1–25.",
+      "task_type": "homework",
+      "due_days_from_now": 6,
+      "estimated_hours": 2.0,
+      "grade_weight": 5.0
+    }
+  ],
+  "study_sessions": [
+    {"subject": "Physics", "duration_minutes": 90, "task_completed": 0, "days_ago": 5},
+    {"subject": "Physics", "duration_minutes": 60, "task_completed": 0, "days_ago": 3},
+    {"subject": "Physics", "duration_minutes": 75, "task_completed": 1, "days_ago": 1},
+    {"subject": "Mathematics", "duration_minutes": 120, "task_completed": 1, "days_ago": 7},
+    {"subject": "Mathematics", "duration_minutes": 90, "task_completed": 1, "days_ago": 4},
+    {"subject": "Mathematics", "duration_minutes": 60, "task_completed": 1, "days_ago": 2},
+    {"subject": "Computer Science", "duration_minutes": 150, "task_completed": 1, "days_ago": 6},
+    {"subject": "Computer Science", "duration_minutes": 120, "task_completed": 1, "days_ago": 3},
+    {"subject": "Computer Science", "duration_minutes": 90, "task_completed": 0, "days_ago": 1},
+    {"subject": "Chemistry", "duration_minutes": 60, "task_completed": 0, "days_ago": 8},
+    {"subject": "Chemistry", "duration_minutes": 45, "task_completed": 0, "days_ago": 4},
+    {"subject": "History", "duration_minutes": 90, "task_completed": 1, "days_ago": 10},
+    {"subject": "History", "duration_minutes": 60, "task_completed": 0, "days_ago": 5},
+    {"subject": "Biology", "duration_minutes": 120, "task_completed": 1, "days_ago": 12},
+    {"subject": "Biology", "duration_minutes": 90, "task_completed": 1, "days_ago": 7},
+    {"subject": "English", "duration_minutes": 60, "task_completed": 1, "days_ago": 9},
+    {"subject": "English", "duration_minutes": 45, "task_completed": 1, "days_ago": 3},
+    {"subject": "Economics", "duration_minutes": 60, "task_completed": 1, "days_ago": 11}
+  ]
+}
