@@ -1,0 +1,6 @@
+Python Programming & Data Engineering Notes
+Topic: Decorators, Generators, & Asynchronous I/O
+1. Decorators: Higher-order functions that wrap another function to extend behavior without modifying source. Syntax: @decorator_name.
+2. Generators & Yield: Functions using 'yield' produce lazy-evaluated iterators, minimizing memory usage for large data streams.
+3. Asyncio & Coroutines: Event loop manages asynchronous tasks using 'async def' and 'await' keywords for non-blocking I/O.
+4. Memory Management: Python uses reference counting and a generational Garbage Collector (GC) to reclaim memory.

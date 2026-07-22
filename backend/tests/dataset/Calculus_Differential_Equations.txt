@@ -1,0 +1,6 @@
+Calculus II & Differential Equations
+Topic: Derivatives, Integrals, & Taylor Series
+1. Derivative Definition: f'(x) = lim(h->0) [f(x+h) - f(x)] / h. Represents instantaneous rate of change.
+2. Fundamental Theorem of Calculus: Integral of f(x) from a to b = F(b) - F(a), where F'(x) = f(x).
+3. Taylor Series Expansion: f(x) = sum_{n=0}^inf [f^(n)(a) / n!] * (x - a)^n.
+4. Differential Equations: First-order separable equations dy/dx = g(x)h(y) solved by integrating separate variables.

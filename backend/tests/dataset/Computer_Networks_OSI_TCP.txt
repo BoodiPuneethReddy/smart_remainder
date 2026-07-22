@@ -1,0 +1,11 @@
+Computer Networks Handbook 2026
+Topic: OSI 7-Layer Model & TCP/IP Protocol Suite
+Layer 7: Application (HTTP, HTTPS, FTP, DNS)
+Layer 6: Presentation (SSL/TLS Encryption, Data Formatting)
+Layer 5: Session (Session Setup, Maintenance, Tear-down)
+Layer 4: Transport (TCP Reliable Segment Flow Control, UDP Datagram Connectionless)
+Layer 3: Network (IP Address Routing, ICMP, Packet Fragmentation)
+Layer 2: Data Link (MAC Addresses, Ethernet Framing, Error Detection CRC)
+Layer 1: Physical (Bits, Cables, Optical Signals, Repeaters)
+
+TCP 3-Way Handshake: SYN -> SYN-ACK -> ACK.

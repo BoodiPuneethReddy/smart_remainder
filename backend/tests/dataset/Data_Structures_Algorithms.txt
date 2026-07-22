@@ -1,0 +1,8 @@
+Data Structures & Algorithms (DSA) Manual
+Topic: Binary Search Trees, Graphs, & Time Complexity
+1. Binary Search Tree (BST): Left subtree contains nodes < parent; right subtree contains nodes > parent. Search time: O(log N) average, O(N) worst.
+2. AVL & Red-Black Trees: Self-balancing BSTs guaranteeing O(log N) operations by performing tree rotations.
+3. Graph Algorithms:
+   - Breadth-First Search (BFS): Uses Queue, O(V + E) complexity.
+   - Depth-First Search (DFS): Uses Stack/Recursion, O(V + E) complexity.
+   - Dijkstra's Algorithm: Shortest path in weighted graphs using Priority Queue, O((V + E) log V).

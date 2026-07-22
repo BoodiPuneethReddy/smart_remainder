@@ -35,6 +35,15 @@ class Settings(BaseSettings):
     # ── CORS ──────────────────────────────────────────────────────────────────
     frontend_url: str = "http://localhost:5173"
 
+    # ── Dev Mode & SMTP Configuration ──────────────────────────────────────────
+    dev_mode: bool = True
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_name: str = "Smart Study Reminder AI"
+    smtp_from_email: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

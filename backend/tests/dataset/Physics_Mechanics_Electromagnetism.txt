@@ -1,0 +1,12 @@
+Physics I & II Engineering Reference
+Topic: Newton's Laws, Work-Energy, & Maxwell's Equations
+1. Newton's Three Laws:
+   - First Law: Inertia (body remains at rest/constant velocity unless acted upon).
+   - Second Law: F = dp/dt = m * a.
+   - Third Law: Action-Reaction (equal and opposite forces).
+2. Work-Energy Theorem: Total work done on an object equals change in kinetic energy: W = Delta KE = 1/2 m v^2 - 1/2 m u^2.
+3. Maxwell's Equations:
+   - Gauss's Law for Electricity: div E = rho / epsilon_0
+   - Gauss's Law for Magnetism: div B = 0 (no magnetic monopoles)
+   - Faraday's Law: curl E = -dB/dt (induction)
+   - Ampere-Maxwell Law: curl B = mu_0 J + mu_0 epsilon_0 dE/dt.

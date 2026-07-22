@@ -1,0 +1,1051 @@
+/* ============================================================
+   index.css — Global styles and CSS variable definitions
+   RULE: All CSS variables defined once here. Components use var(--*).
+   No hardcoded hex values anywhere else.
+   ============================================================ */
+
+/* ── Google Fonts — must precede @tailwind directives ──────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── CSS Custom Properties (Design Tokens) ─────────────────── */
+:root {
+  /* Backgrounds */
+  --bg-primary:   #0B0E14;
+  --bg-secondary: #12141C;
+  --bg-tertiary:  #1A1E2A;
+
+  /* Card surfaces */
+  --card-bg:     rgba(255, 255, 255, 0.05);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --card-hover:  rgba(255, 255, 255, 0.08);
+  --card-active: rgba(255, 255, 255, 0.12);
+
+  /* Priority tiers */
+  --priority-high:   #FF6B35;
+  --priority-medium: #FFC857;
+  --priority-low:    #2EC4B6;
+
+  /* Text */
+  --text-primary:   #F5F7FA;
+  --text-secondary: #98A2B3;
+  --text-muted:     #64748B;
+
+  /* Semantic */
+  --success:  #2EC4B6;
+  --warning:  #FFC857;
+  --danger:   #FF6B35;
+  --info:     #5B8DEF;
+
+  /* Interactive states */
+  --focus-ring:     rgba(91, 141, 239, 0.5);
+  --surface-hover:  rgba(255, 255, 255, 0.08);
+  --surface-active: rgba(255, 255, 255, 0.12);
+
+  /* Elevation */
+  --shadow-flat:         none;
+  --shadow-raised:       0 4px 16px rgba(0, 0, 0, 0.24);
+  --shadow-raised-hover: 0 8px 24px rgba(0, 0, 0, 0.32);
+  --shadow-floating:     0 12px 32px rgba(0, 0, 0, 0.40);
+
+  /* Border radius */
+  --radius-card:  24px;
+  --radius-input: 14px;
+  --radius-badge: 8px;
+
+  /* Spacing */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* ── Base Resets ────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* ── Scrollbar styling ──────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Selection ──────────────────────────────────────────────── */
+::selection {
+  background-color: rgba(91, 141, 239, 0.3);
+  color: var(--text-primary);
+}
+
+/* ── Focus outline (replaced by focus-ring utility) ─────────── */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* ── Typography utilities (reference design-tokens.ts) ─────── */
+@layer utilities {
+  .text-display {
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1.2;
+    font-family: var(--font-sans);
+  }
+  .text-h1 {
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+  .text-h2 {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+  .text-h3 {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  .text-body {
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.5;
+  }
+  .text-body-sm {
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.5;
+  }
+  .text-caption {
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  /* Glass card surface */
+  .glass {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Card hover lift */
+  .card-hover {
+    transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
+  }
+  .card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-raised-hover);
+    background: var(--card-hover);
+  }
+
+  /* Focus glow ring for inputs */
+  .focus-glow:focus-within {
+    box-shadow: 0 0 0 3px var(--focus-ring);
+    border-color: var(--info) !important;
+  }
+
+  /* Shimmer animation for skeletons */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.04) 0%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0.04) 100%
+    );
+    background-size: 800px 100%;
+    animation: shimmer 1.8s linear infinite;
+  }
+
+  @keyframes shimmer {
+    0%   { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+  }
+
+  /* Priority score ring colors */
+  .ring-priority-high   { --ring-color: var(--priority-high); }
+  .ring-priority-medium { --ring-color: var(--priority-medium); }
+  .ring-priority-low    { --ring-color: var(--priority-low); }
+
+  /* Sidebar / nav active state */
+  .nav-active {
+    background: var(--surface-active);
+    color: var(--text-primary);
+  }
+
+  /* Page layout helpers */
+  .page-padding {
+    padding: var(--space-12) var(--space-12);
+  }
+  @media (max-width: 768px) {
+    .page-padding {
+      padding: var(--space-4) var(--space-4);
+    }
+  }
+}
+
+/* ── Recharts dark theme overrides ─────────────────────────── */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: rgba(255, 255, 255, 0.06) !important;
+}
+.recharts-text,
+.recharts-legend-item-text {
+  fill: var(--text-secondary) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 12px !important;
+}
+.recharts-tooltip-wrapper {
+  filter: none !important;
+}
+
+/* ── Animation keyframes ────────────────────────────────────── */
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes springIn {
+  0%   { opacity: 0; transform: translateY(16px) scale(0.95); }
+  60%  { transform: translateY(-4px) scale(1.01); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes checkScale {
+  0%   { transform: scale(0); opacity: 0; }
+  60%  { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   SMART ACADEMIC IMPORT & AUTH EXTENSIONS (Premium HSL Styles)
+   ========================================================================== */
+
+/* ── College Search Input & Dropdown ──────────────────────────────────────── */
+.college-search {
+  position: relative;
+  width: 100%;
+}
+.college-search__input-wrap {
+  display: flex;
+  align-items: center;
+  position: relative;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-input);
+  padding: 0 12px;
+  height: 44px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.college-search__input-wrap.focused {
+  border-color: var(--info);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.college-search__input-wrap.error {
+  border-color: var(--priority-high);
+}
+.college-search__icon {
+  width: 18px;
+  height: 18px;
+  color: var(--text-secondary);
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+.college-search__input {
+  width: 100%;
+  height: 100%;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  color: var(--text-primary);
+  font-size: 14px;
+  padding: 0;
+}
+.college-search__input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+.college-search__spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--info);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+.college-search__clear {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  font-size: 12px;
+  margin-left: 8px;
+  opacity: 0.7;
+}
+.college-search__clear:hover {
+  opacity: 1;
+  color: var(--text-primary);
+}
+.college-search__selected-badge {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(46, 196, 182, 0.1);
+  border: 1px solid rgba(46, 196, 182, 0.2);
+  color: var(--priority-low);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  margin-top: 8px;
+}
+.college-search__selected-badge .badge-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--priority-low);
+  border-radius: 50%;
+  margin-right: 6px;
+}
+.college-search__dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: #11141c;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-card);
+  margin-top: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+  list-style: none;
+  padding: 4px;
+}
+.college-search__item {
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.college-search__item.highlighted,
+.college-search__item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.college-search__item-name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+.college-search__item-meta {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+.college-search__empty {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: #11141c;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-card);
+  margin-top: 6px;
+  padding: 16px;
+  text-align: center;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+}
+.college-search__empty p {
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.college-search__empty-hint {
+  font-size: 11px;
+  color: var(--text-secondary) !important;
+  opacity: 0.8;
+}
+.college-search__error {
+  color: var(--priority-high);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* ── Auth Forms (Register / ForgotPassword) ─────────────────────────────── */
+.auth-page {
+  min-h-screen: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  position: relative;
+  background: var(--bg-primary);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.auth-background {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 60% 20%, rgba(255,107,53,0.06) 0%, transparent 60%),
+              radial-gradient(ellipse at 20% 80%, rgba(91,141,239,0.06) 0%, transparent 60%);
+  z-index: 1;
+}
+.auth-container {
+  width: 100%;
+  max-width: 440px;
+  position: relative;
+  z-index: 2;
+  animation: fadeSlideIn 0.3s ease-out;
+}
+.auth-card {
+  background: rgba(15, 18, 25, 0.85);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-card);
+  padding: 32px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-floating);
+}
+.auth-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.auth-logo {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+}
+.auth-logo svg {
+  width: 100%;
+  height: 100%;
+}
+.auth-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.auth-subtitle {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+}
+.auth-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 16px;
+  gap: 8px;
+}
+.auth-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.auth-step.active {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.auth-step-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--card-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+.auth-step.active .auth-step-dot {
+  background: var(--priority-high);
+  border-color: var(--priority-high);
+  color: white;
+}
+.auth-step.done .auth-step-dot {
+  background: var(--priority-low);
+  border-color: var(--priority-low);
+  color: white;
+}
+.auth-step-line {
+  width: 32px;
+  height: 1px;
+  background: var(--card-border);
+}
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.auth-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  gap: 12px;
+}
+.auth-form-actions button {
+  flex: 1;
+}
+.auth-footer {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.auth-link {
+  color: var(--info);
+  text-decoration: none;
+  font-weight: 500;
+}
+.auth-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Form primitives ─────────────────────────────────────────────────────── */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.form-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.form-optional {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+.form-hint {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+.form-input {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-input);
+  padding: 10px 12px;
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.form-input:focus {
+  border-color: var(--info);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.form-input.error {
+  border-color: var(--priority-high);
+}
+.form-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.form-input-wrap .form-input {
+  width: 100%;
+  padding-right: 40px;
+}
+.form-input-toggle {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+}
+.form-error {
+  color: var(--priority-high);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.form-error-banner {
+  background: rgba(255, 107, 53, 0.1);
+  border: 1px solid rgba(255, 107, 53, 0.2);
+  color: var(--priority-high);
+  font-size: 13px;
+  padding: 10px 12px;
+  border-radius: var(--radius-input);
+}
+
+/* ── OTP Verification Flow ──────────────────────────────────────────────── */
+.otp-inputs {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 12px 0;
+}
+.otp-input {
+  width: 48px;
+  height: 52px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 600;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.otp-input:focus {
+  border-color: var(--info);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.otp-input.error {
+  border-color: var(--priority-high);
+}
+.otp-resend {
+  text-align: center;
+  margin-top: 12px;
+}
+.otp-resend-timer {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.dev-banner {
+  background: rgba(255, 200, 87, 0.1);
+  border: 1px solid rgba(255, 200, 87, 0.2);
+  color: var(--priority-medium);
+  font-size: 12.5px;
+  padding: 8px 12px;
+  border-radius: var(--radius-input);
+  text-align: center;
+}
+.auth-success {
+  text-align: center;
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.auth-success-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--priority-low);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+}
+.auth-success p {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* ── Smart Academic Import Modal ────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  z-index: 1000;
+  animation: fadeSlideIn 0.2s ease-out;
+}
+.modal {
+  background: #0f1219;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-card);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 600px;
+  max-height: calc(100vh - 48px);
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--card-border);
+}
+.modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.modal-icon {
+  font-size: 24px;
+}
+.modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.modal-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+.modal-close:hover {
+  opacity: 1;
+  color: var(--text-primary);
+}
+.modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.01);
+}
+
+/* Dropzone styling */
+.import-dropzone {
+  border: 2px dashed var(--card-border);
+  border-radius: 12px;
+  padding: 40px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  background: rgba(255, 255, 255, 0.01);
+}
+.import-dropzone:hover,
+.import-dropzone.dragging {
+  border-color: var(--info);
+  background: rgba(91, 141, 239, 0.03);
+}
+.import-dropzone-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+}
+.import-dropzone-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.import-dropzone-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+.import-capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.cap-item {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.cap-item.cap-ok {
+  background: rgba(46, 196, 182, 0.1);
+  color: var(--priority-low);
+  border: 1px solid rgba(46, 196, 182, 0.15);
+}
+
+.spinner-large {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.05);
+  border-top-color: var(--info);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 12px;
+}
+.import-dropzone-uploading p {
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.import-hint {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+/* Preview grid */
+.import-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.import-classification {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--card-border);
+  padding: 12px 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.import-classification-type {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.import-type-badge {
+  background: var(--priority-high);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.import-confidence-bar-wrap {
+  width: 80px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.import-confidence-bar {
+  display: block;
+  height: 100%;
+  background: var(--priority-low);
+  border-radius: 999px;
+}
+.import-confidence-pct {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.import-ocr-badge {
+  background: rgba(91, 141, 239, 0.1);
+  color: var(--info);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.import-section {
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.01);
+  border-radius: 8px;
+  padding: 16px;
+}
+.import-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  border-left: 3px solid var(--info);
+  padding-left: 8px;
+}
+.import-duplicate-warning {
+  background: rgba(255, 200, 87, 0.08);
+  border: 1px solid rgba(255, 200, 87, 0.15);
+  color: var(--priority-medium);
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+.import-missing-warning {
+  background: rgba(255, 107, 53, 0.08);
+  border: 1px solid rgba(255, 107, 53, 0.15);
+  color: var(--priority-high);
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+.import-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 576px) {
+  .import-fields {
+    grid-template-columns: 1fr;
+  }
+}
+.import-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.import-field-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.confidence-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--badge-color);
+  background: transparent;
+}
+.import-field-input {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--text-primary);
+  font-size: 13.5px;
+  outline: none;
+  box-sizing: border-box;
+}
+.import-field-input:focus {
+  border-color: var(--info);
+}
+.import-field--empty .import-field-input {
+  border-style: dashed;
+}
+
+.import-transparency {
+  margin-top: 12px;
+}
+.import-raw-text {
+  background: #0b0e14;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  padding: 12px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-family: monospace;
+  white-space: pre-wrap;
+  margin-top: 8px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.import-approving {
+  text-align: center;
+  padding: 32px 0;
+}
+.import-approving p {
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.import-done {
+  text-align: center;
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.import-done-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--priority-low);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+.import-done h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.import-ai-summary {
+  width: 100%;
+  background: rgba(91, 141, 239, 0.05);
+  border: 1px solid rgba(91, 141, 239, 0.15);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: left;
+}
+.import-ai-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--info);
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.import-ai-summary p:not(.import-ai-label) {
+  font-size: 13.5px;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+.import-error {
+  background: rgba(255, 107, 53, 0.08);
+  border: 1px solid rgba(255, 107, 53, 0.15);
+  color: var(--priority-high);
+  font-size: 12.5px;
+  padding: 10px 12px;
+  border-radius: var(--radius-input);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}

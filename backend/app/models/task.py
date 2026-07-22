@@ -54,3 +54,8 @@ class Task(Base):
 
     # ── Assignment-specific ───────────────────────────────────────────────────
     grade_weight = Column(Float, nullable=True)  # % of final grade
+
+    # ── Document Import traceability (View Source) ────────────────────────────
+    # Set when this task was created via the Smart Academic Import System.
+    # Enables 'View Source' to open the original uploaded document.
+    imported_from_id = Column(Integer, ForeignKey("imported_documents.id"), nullable=True)

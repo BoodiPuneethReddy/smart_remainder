@@ -25,7 +25,10 @@ from app.services.ai_client import get_ai_client
 from app.agents.planner_agent import score_all_tasks
 from app.models.user import User
 
-from app.api.routes import auth, tasks, planner, chat, reminders, analytics
+from app.api.routes import auth, tasks, planner, chat, reminders, analytics, assessment
+from app.api.routes import colleges as colleges_router
+from app.api.routes import import_routes
+from app.services.document_import.ocr_status import OCR_AVAILABLE
 
 settings = get_settings()
 logging.basicConfig(
@@ -60,8 +63,17 @@ async def lifespan(app: FastAPI):
                 )
             except Exception as exc:
                 logger.warning("Could not score tasks for user %d: %s", user.id, exc)
+
+        # 4. Seed college directory (idempotent — runs only if table is empty)
+        try:
+            from app.seed.seed_colleges import seed_colleges
+            seed_colleges(db)
+        except Exception as exc:
+            logger.warning("College seeder failed: %s", exc)
     finally:
         db.close()
+
+    logger.info("Tesseract OCR: %s", 'available' if OCR_AVAILABLE else 'unavailable — image imports disabled')
 
     # 4. Start reminder scheduler
     start_scheduler()
@@ -97,6 +109,9 @@ app.include_router(planner.router)
 app.include_router(chat.router)
 app.include_router(reminders.router)
 app.include_router(analytics.router)
+app.include_router(colleges_router.router)
+app.include_router(import_routes.router)
+app.include_router(assessment.router)
 
 
 @app.get("/health")

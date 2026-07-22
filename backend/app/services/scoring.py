@@ -96,6 +96,7 @@ def compute_priority(
     due_date: datetime,
     estimated_hours: float,
     sessions: list[dict],
+    retention_value: float = 100.0,
 ) -> dict:
     """
     Compute all sub-scores and the final priority score for one task.
@@ -117,11 +118,14 @@ def compute_priority(
     effort = compute_effort_score(estimated_hours, days_remaining)
 
     # Weighted contributions (weight × sub_score)
+    retention_score = (1.0 - (retention_value / 100.0)) * 10.0
+
     contributions = {
-        "urgency": 0.40 * urgency,
-        "weakness": 0.25 * weakness,
-        "importance": 0.25 * importance,
+        "urgency": 0.35 * urgency,
+        "weakness": 0.20 * weakness,
+        "importance": 0.20 * importance,
         "effort": 0.10 * effort,
+        "retention": 0.15 * retention_score,
     }
 
     priority_score = sum(contributions.values()) * 10.0
@@ -137,6 +141,7 @@ def compute_priority(
         "importance_score": round(importance, 2),
         "weakness_score": round(weakness, 2),
         "effort_score": round(effort, 2),
+        "retention_score": round(retention_score, 2),
         "days_remaining": round(days_remaining, 2),
         "top_factors": top_factors,
         "contributions": contributions,
@@ -192,6 +197,18 @@ _EXPLANATION_TEMPLATES: dict[tuple, list[str]] = {
     ("weakness", "importance"): [
         "{subject} is top priority — high-stakes {task_type} and your historical completion rate on this subject needs a boost.",
         "Focus on {subject}: important {task_type} combined with a documented weakness make this your best study investment.",
+    ],
+    ("retention", "urgency"): [
+        "Priority increased for {subject} — your retention has dropped, and the {task_type} is due in {days} day(s).",
+        "Focus on {subject}: memory retention is low and the deadline is in {days} day(s)."
+    ],
+    ("retention", "weakness"): [
+        "Revision needed for {subject}: retention is down on this historically challenging subject.",
+        "{subject} requires study — low retention and past completion performance suggest focusing here."
+    ],
+    ("retention", "importance"): [
+        "{subject} is high impact: you need to revise this important {task_type} as retention has decayed.",
+        "Crucial review for {subject}: high-stakes task combined with low memory retention."
     ],
 }
 

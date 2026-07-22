@@ -21,6 +21,7 @@ class UserResponse(BaseModel):
     email: str
     full_name: str
     is_active: bool
+    college: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
