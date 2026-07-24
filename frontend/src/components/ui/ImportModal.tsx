@@ -5,6 +5,7 @@ interface ImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: (result: { tasksCreated: number; summary: string }) => void;
+  onStartLearning?: (docId: number) => void;
   initialFile?: File | null;
 }
 
@@ -75,7 +76,7 @@ interface EditableField {
   confidence: string;
 }
 
-export default function ImportModal({ isOpen, onClose, onSuccess, initialFile }: ImportModalProps) {
+export default function ImportModal({ isOpen, onClose, onSuccess, onStartLearning, initialFile }: ImportModalProps) {
   const [step, setStep] = useState<ModalStep>('upload');
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -244,14 +245,26 @@ export default function ImportModal({ isOpen, onClose, onSuccess, initialFile }:
               {/* Classification header */}
               <div className="import-classification">
                 <div className="import-classification-type">
-                  <span className="import-type-badge">{preview.document_type.replace('_', ' ')}</span>
+                  <span className="import-type-badge">
+                    {preview.document_type === 'mixed_academic'
+                      ? 'Mixed Academic Document'
+                      : preview.document_type === 'assignment_notice'
+                      ? 'Assignment Notice'
+                      : preview.document_type === 'exam_schedule'
+                      ? 'Exam Schedule'
+                      : preview.document_type === 'timetable'
+                      ? 'Class Timetable'
+                      : preview.document_type === 'unknown_academic'
+                      ? 'Academic Document'
+                      : preview.document_type.replace('_', ' ')}
+                  </span>
                   <span className="import-confidence-bar-wrap">
                     <span
                       className="import-confidence-bar"
                       style={{ width: `${Math.round(preview.classification_confidence * 100)}%` }}
                     />
                   </span>
-                  <span className="import-confidence-pct">{Math.round(preview.classification_confidence * 100)}% confidence</span>
+                  <span className="import-confidence-pct">{Math.round(preview.classification_confidence * 100)}% overall confidence</span>
                 </div>
                 {preview.ocr_used && <span className="import-ocr-badge">🔍 OCR used</span>}
               </div>
@@ -280,14 +293,18 @@ export default function ImportModal({ isOpen, onClose, onSuccess, initialFile }:
                   const estHoursStr = fieldMap['estimated_hours'] || '2.0 hrs';
                   const reminderTimingStr = fieldMap['reminder_timing'] || '2 days before';
 
-                  // Compute per-task numerical confidence score
-                  let taskScore = 98;
-                  if (isIgnored) taskScore = 20;
-                  else if (isNeedsConf) taskScore = 41;
-                  else if (section.display_name.includes('Python Lab')) taskScore = 83;
-                  else if (section.display_name.includes('Networks Quiz')) taskScore = 95;
-                  else if (section.display_name.includes('Heap Sort Report')) taskScore = 97;
-                  else if (section.display_name.includes('Heap Sort Demo')) taskScore = 99;
+                  // Compute per-task numerical confidence score dynamically from field confidence
+                  const validFields = section.fields.filter(f => !['priority_preview', 'estimated_hours', 'reminder_timing', 'suppressed', 'confirmation_question', 'superseded_date'].includes(f.field_name));
+                  let taskScore = 95;
+                  if (isIgnored) {
+                    taskScore = 20;
+                  } else if (isNeedsConf) {
+                    taskScore = 41;
+                  } else if (validFields.length > 0) {
+                    const scoreMap: Record<string, number> = { high: 98, medium: 75, low: 45, not_found: 20 };
+                    const total = validFields.reduce((acc, f) => acc + (scoreMap[f.confidence] || 75), 0);
+                    taskScore = Math.round(total / validFields.length);
+                  }
 
                   return (
                     <div key={secKey} className={`import-section ${isIgnored ? 'import-section--ignored' : ''}`}>
@@ -304,10 +321,16 @@ export default function ImportModal({ isOpen, onClose, onSuccess, initialFile }:
                           💡 Why {taskScore}% confidence? (Click to view breakdown)
                         </summary>
                         <div style={{ marginTop: '4px', padding: '6px 10px', background: '#F1F5F9', borderRadius: '6px', fontSize: '0.75rem' }}>
-                          <div>✓ Subject matched ({fieldMap['subject'] || 'Detected'})</div>
-                          <div>✓ Title matched ({section.display_name.split(' ')[0]})</div>
-                          {fieldMap['due_date'] ? <div>✓ Date parsed ({fieldMap['due_date']})</div> : <div style={{ color: '#D97706' }}>⚠ Specific date missing</div>}
-                          {fieldMap['faculty'] ? <div>✓ Instructor linked ({fieldMap['faculty']})</div> : <div style={{ color: '#64748B' }}>⚠ Instructor not specified in document</div>}
+                          <div>✓ Subject: {fieldMap['subject'] || 'Detected'}</div>
+                          <div>✓ Title: {section.display_name}</div>
+                          {fieldMap['due_date'] || fieldMap['date'] ? (
+                            <div>✓ Date parsed ({fieldMap['due_date'] || fieldMap['date']})</div>
+                          ) : (
+                            <div style={{ color: '#D97706' }}>⚠ Specific date missing</div>
+                          )}
+                          {fieldMap['faculty'] || fieldMap['instructor'] ? (
+                            <div>✓ Instructor linked ({fieldMap['faculty'] || fieldMap['instructor']})</div>
+                          ) : null}
                         </div>
                       </details>
 
@@ -324,32 +347,26 @@ export default function ImportModal({ isOpen, onClose, onSuccess, initialFile }:
                       {isNeedsConf && (
                         <div className="import-confirmation-box" style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '8px', padding: '12px', marginBottom: '12px' }}>
                           <p style={{ margin: '0 0 4px 0', fontSize: '0.85rem', fontWeight: 600, color: '#D97706' }}>
-                            ⚠️ Date unresolved for {section.display_name.split(' ')[0]}
+                            ⚠️ {fieldMap['confirmation_question'] || `Date unresolved for ${section.display_name}`}
                           </p>
-                          <p style={{ margin: '0 0 8px 0', fontSize: '0.78rem', color: '#92400E' }}>
-                            Document text states: <em>"{section.display_name.includes('Cloud') ? 'Closes next Monday' : 'Review in Week 3'}"</em>. Inferred anchor date: 25 Aug 2026. Select intended date:
-                          </p>
-                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                            {['Monday (31 Aug)', 'Tuesday (1 Sept)', 'Wednesday (2 Sept)', 'Pick Date...'].map(dayOpt => (
-                              <button
-                                key={dayOpt}
-                                type="button"
-                                className="btn-ghost btn-sm"
-                                style={{ fontSize: '0.75rem', padding: '4px 8px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.9)', border: '1px solid #F59E0B', fontWeight: 600 }}
-                                onClick={() => {
-                                  const dateVal = dayOpt.includes('Monday') ? '31 Aug 2026 10:00 AM' : dayOpt.includes('Tuesday') ? '01 Sept 2026 10:00 AM' : '02 Sept 2026 10:00 AM';
-                                  setEditedFields(prev => ({
-                                    ...prev,
-                                    [secKey]: {
-                                      ...prev[secKey],
-                                      due_date: dateVal,
-                                    },
-                                  }));
-                                }}
-                              >
-                                {dayOpt}
-                              </button>
-                            ))}
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
+                            <input
+                              type="text"
+                              className="import-field-input"
+                              style={{ fontSize: '0.8rem', padding: '4px 8px', width: '220px' }}
+                              value={editedFields[secKey]?.['due_date'] ?? fieldMap['due_date'] ?? ''}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setEditedFields(prev => ({
+                                  ...prev,
+                                  [secKey]: {
+                                    ...prev[secKey],
+                                    due_date: val,
+                                  },
+                                }));
+                              }}
+                              placeholder="Enter deadline date..."
+                            />
                           </div>
                         </div>
                       )}
@@ -357,7 +374,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess, initialFile }:
                       {/* Friendly Ignored Item Explanation */}
                       {isIgnored && (
                         <div className="import-ignored-explanation" style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '8px', padding: '10px 12px', marginBottom: '12px', fontSize: '0.85rem', color: '#DC2626' }}>
-                          🚫 <strong>Ignored automatically:</strong> Document explicitly states <em>"DO NOT CREATE TASK AUTOMATICALLY"</em>. No reminder or task will be created.
+                          🚫 <strong>Ignored automatically:</strong> {fieldMap['suppressed'] || 'Document requested not to create tasks for this item. No reminder will be created.'}
                         </div>
                       )}
 
@@ -374,7 +391,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess, initialFile }:
                       )}
 
                       <div className="import-fields">
-                        {section.fields.filter(f => !['priority_preview', 'estimated_hours', 'reminder_timing'].includes(f.field_name)).map(field => (
+                        {section.fields.filter(f => !['priority_preview', 'estimated_hours', 'reminder_timing', 'suppressed', 'confirmation_question', 'superseded_date'].includes(f.field_name)).map(field => (
                           <div key={field.field_name} className={`import-field ${field.confidence === 'not_found' ? 'import-field--empty' : ''}`}>
                             <div className="import-field-header">
                               <label className="import-field-label">{field.display_label}</label>
@@ -407,7 +424,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess, initialFile }:
                           🔍 View Source Text Snippet
                         </summary>
                         <div style={{ marginTop: '6px', padding: '8px 12px', background: '#F8FAFC', borderRadius: '6px', borderLeft: '3px solid #3B82F6', fontFamily: 'monospace', fontSize: '0.78rem' }}>
-                          Source grounding: <mark style={{ background: '#FDE047', padding: '2px 4px', borderRadius: '4px', fontWeight: 600 }}>{section.display_name.split(' ')[0]} {editedFields[secKey]?.due_date ?? ''}</mark>
+                          Source grounding: <mark style={{ background: '#FDE047', padding: '2px 4px', borderRadius: '4px', fontWeight: 600 }}>{section.display_name}</mark>
                         </div>
                       </details>
                     </div>
@@ -488,10 +505,21 @@ export default function ImportModal({ isOpen, onClose, onSuccess, initialFile }:
         {step === 'preview' && preview && (
           <div className="import-presubmission-summary" style={{ background: '#F1F5F9', borderTop: '1px solid #E2E8F0', borderBottom: '1px solid #E2E8F0', padding: '10px 20px', fontSize: '0.82rem', color: '#334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
             <div>
-              Will create: <strong style={{ color: '#059669' }}>{preview.sections.filter(s => s.document_type !== 'ignored_item').length} Tasks</strong> · <span style={{ color: '#D97706' }}>{preview.sections.filter(s => s.document_type === 'needs_confirmation').length} Pending Confirmation</span> · <span style={{ color: '#DC2626' }}>{preview.sections.filter(s => s.document_type === 'ignored_item').length} Ignored</span> (No duplicates detected)
+              Will create: <strong style={{ color: '#059669' }}>{preview.sections.filter(s => s.document_type !== 'ignored_item').length} Tasks</strong> · <span style={{ color: '#D97706' }}>{preview.sections.filter(s => s.document_type === 'needs_confirmation').length} Pending Confirmation</span> · <span style={{ color: '#DC2626' }}>{preview.sections.filter(s => s.document_type === 'ignored_item').length} Ignored</span>
             </div>
             <div>
-              Total Est. Study: <strong>14.5 hours</strong> · First Reminder: <strong>26 Aug 2026</strong>
+              Total Est. Study: <strong>{(() => {
+                const totalHours = preview.sections
+                  .filter(s => s.document_type !== 'ignored_item')
+                  .reduce((acc, s) => {
+                    const fieldMap: Record<string, string> = {};
+                    s.fields.forEach(f => { fieldMap[f.field_name] = f.value ?? ''; });
+                    const hrsStr = fieldMap['estimated_hours'] || '2.0';
+                    const hrs = parseFloat(hrsStr.replace(/[^0-9.]/g, '')) || 2.0;
+                    return acc + hrs;
+                  }, 0);
+                return `${totalHours.toFixed(1)} hours`;
+              })()}</strong>
             </div>
           </div>
         )}
@@ -524,7 +552,19 @@ export default function ImportModal({ isOpen, onClose, onSuccess, initialFile }:
           {step === 'done' && (
             <>
               <button className="btn-ghost" onClick={reset}>Import another</button>
-              <button className="btn-primary" onClick={onClose}>Close</button>
+              <button
+                className="btn-primary"
+                style={{ backgroundColor: '#2563EB', display: 'flex', alignItems: 'center', gap: '6px' }}
+                onClick={() => {
+                  if (preview?.import_id && onStartLearning) {
+                    onStartLearning(preview.import_id);
+                  }
+                  onClose();
+                }}
+              >
+                <span>🚀 Start AI Learning Session</span>
+              </button>
+              <button className="btn-secondary" onClick={onClose}>Close</button>
             </>
           )}
         </div>

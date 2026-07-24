@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { authApi, College } from '../lib/api';
+import { authApi, College, getErrorMessage } from '../lib/api';
 import CollegeSearch from '../components/ui/CollegeSearch';
 
 type Step = 'details' | 'college';
@@ -54,7 +54,7 @@ export default function Register() {
       localStorage.setItem('user', JSON.stringify(res.data.user));
       navigate('/dashboard');
     } catch (err: any) {
-      const msg = err.response?.data?.detail || 'Registration failed. Please try again.';
+      const msg = getErrorMessage(err);
       setErrors({ submit: msg });
     } finally {
       setIsLoading(false);

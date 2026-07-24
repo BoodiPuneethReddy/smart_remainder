@@ -59,6 +59,7 @@ class TaskResponse(BaseModel):
     is_completed: bool
     completed_at: Optional[datetime] = None
     priority_score: float
+    priority_tier: str
     urgency_score: float
     importance_score: float
     weakness_score: float

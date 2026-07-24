@@ -7,11 +7,14 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from app.core.database import Base
 
 
+from sqlalchemy.orm import relationship
+
 class QuestionCitation(Base):
     __tablename__ = "question_citations"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user = relationship("User", back_populates="question_citations")
     
     subject = Column(String, nullable=True)
     topic = Column(String, nullable=True)
@@ -21,7 +24,8 @@ class QuestionCitation(Base):
     correct_answer = Column(String, nullable=False)
     
     # Document citation tracking
-    document_id = Column(Integer, ForeignKey("imported_documents.id"), nullable=True)
+    document_id = Column(Integer, ForeignKey("imported_documents.id", ondelete="CASCADE"), nullable=True)
+
     chunk_id = Column(String, nullable=True)
     page_range = Column(String, nullable=True)
     retrieved_context = Column(Text, nullable=True)

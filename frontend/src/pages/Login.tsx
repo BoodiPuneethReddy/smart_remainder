@@ -8,6 +8,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, Zap, AlertCircle, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { getErrorMessage } from '@/lib/api';
 import { Button, Input, Field } from '@/components/ui';
 import { fadeSlideIn } from '@/lib/motion';
 import { iconSize } from '@/components/ui';
@@ -39,8 +40,8 @@ const DUST_PARTICLES = Array.from({ length: 25 }).map((_, i) => ({
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('punithgodof@gmail.com');
-  const [password, setPassword] = useState('Punith@123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -56,8 +57,8 @@ export default function Login() {
     try {
       await login(email, password);
       navigate('/dashboard');
-    } catch {
-      setError('Invalid email or password. Please try again.');
+    } catch (err: any) {
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }

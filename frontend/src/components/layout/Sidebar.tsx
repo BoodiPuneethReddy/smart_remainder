@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import { authApi } from '@/lib/api';
 import { iconSize } from '@/components/ui';
 
 const NAV_ITEMS = [
@@ -43,6 +44,50 @@ export function Sidebar() {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [editName, setEditName] = useState(user?.full_name || '');
+  const [editEmail, setEditEmail] = useState(user?.email || '');
+  const [editCollege, setEditCollege] = useState(user?.college || user?.custom_college || '');
+  const [editDepartment, setEditDepartment] = useState(user?.department || '');
+  const [editYear, setEditYear] = useState(user?.year || '');
+  const [editPreferences, setEditPreferences] = useState(user?.preferences || '');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileMsg, setProfileMsg] = useState('');
+
+  const openProfile = () => {
+    setEditName(user?.full_name || '');
+    setEditEmail(user?.email || '');
+    setEditCollege(user?.college || user?.custom_college || '');
+    setEditDepartment(user?.department || '');
+    setEditYear(user?.year || '');
+    setEditPreferences(user?.preferences || '');
+    setProfileMsg('');
+    setShowProfileModal(true);
+  };
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    setProfileMsg('');
+    try {
+      const res = await authApi.updateProfile({
+        full_name: editName,
+        email: editEmail,
+        custom_college: editCollege,
+        department: editDepartment,
+        year: editYear,
+        preferences: editPreferences,
+      });
+      localStorage.setItem('user', JSON.stringify(res.data));
+      setProfileMsg('Profile saved successfully!');
+      setTimeout(() => {
+        setShowProfileModal(false);
+        window.location.reload();
+      }, 1000);
+    } catch (err: any) {
+      setProfileMsg(err.response?.data?.detail || 'Failed to save profile');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   const handleLogout = () => { logout(); navigate('/login'); };
 
@@ -73,15 +118,15 @@ export function Sidebar() {
         {/* User profile section with interactive modal */}
         <div className="p-3 border-t border-[var(--card-border)]">
           <button
-            onClick={() => setShowProfileModal(true)}
+            onClick={openProfile}
             className="w-full text-left px-3 py-2 mb-1 rounded-input hover:bg-[var(--surface-hover)] transition-all cursor-pointer flex items-center justify-between"
           >
             <div className="truncate">
               <p className="text-body font-medium text-[var(--text-primary)] truncate">
-                {user?.full_name ?? 'Punith'}
+                {user?.full_name || 'Account'}
               </p>
-              <p className="text-caption text-[var(--text-muted)] truncate">{user?.email ?? 'punithgodof@gmail.com'}</p>
-              <p className="text-[10px] text-[var(--info,#3B82F6)] font-semibold truncate">{user?.college ?? 'SVCE'}</p>
+              <p className="text-caption text-[var(--text-muted)] truncate">{user?.email || ''}</p>
+              {user?.college && <p className="text-[10px] text-[var(--info,#3B82F6)] font-semibold truncate">{user.college}</p>}
             </div>
             <span className="text-xs text-[var(--text-muted)]">⚙️</span>
           </button>
@@ -98,34 +143,94 @@ export function Sidebar() {
       {/* ── Profile Details Modal ─────────────────────────────────────────────── */}
       <AnimatePresence>
         {showProfileModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-[var(--bg-secondary,#1E293B)] border border-[var(--card-border,#334155)] rounded-2xl p-6 w-full max-w-md shadow-2xl text-[var(--text-primary,#F8FAFC)]"
+              className="bg-[var(--bg-secondary,#1E293B)] border border-[var(--card-border,#334155)] rounded-2xl p-6 w-full max-w-lg shadow-2xl text-[var(--text-primary,#F8FAFC)] space-y-4 my-8"
             >
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-700">
                 <h3 className="text-xl font-bold flex items-center gap-2">👤 Account Profile</h3>
                 <button onClick={() => setShowProfileModal(false)} className="text-slate-400 hover:text-white text-lg">✕</button>
               </div>
-              <div className="space-y-4 text-sm">
-                <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700">
-                  <span className="text-xs text-slate-400 block mb-1">Full Name</span>
-                  <p className="font-semibold text-base">{user?.full_name ?? 'Punith'}</p>
+
+              {profileMsg && (
+                <div className={`p-3 rounded-xl text-sm font-medium ${profileMsg.includes('success') ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/20 text-red-300 border border-red-500/30'}`}>
+                  {profileMsg}
                 </div>
-                <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700">
-                  <span className="text-xs text-slate-400 block mb-1">Email Address</span>
-                  <p className="font-semibold text-base">{user?.email ?? 'punithgodof@gmail.com'}</p>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  />
                 </div>
-                <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700">
-                  <span className="text-xs text-slate-400 block mb-1">College / University</span>
-                  <p className="font-semibold text-base text-blue-400">{user?.college ?? 'Sri Venkateswara College of Engineering'}</p>
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">College / University</label>
+                  <input
+                    type="text"
+                    value={editCollege}
+                    onChange={(e) => setEditCollege(e.target.value)}
+                    placeholder="Enter institution name"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Department</label>
+                  <input
+                    type="text"
+                    value={editDepartment}
+                    onChange={(e) => setEditDepartment(e.target.value)}
+                    placeholder="Computer Science, ECE, etc."
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Year / Grade</label>
+                  <input
+                    type="text"
+                    value={editYear}
+                    onChange={(e) => setEditYear(e.target.value)}
+                    placeholder="3rd Year, Semester 5"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Study Preferences</label>
+                  <input
+                    type="text"
+                    value={editPreferences}
+                    onChange={(e) => setEditPreferences(e.target.value)}
+                    placeholder="e.g. Night study, 3h/day"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  />
                 </div>
               </div>
-              <div className="mt-6 flex justify-end gap-3">
-                <button onClick={() => setShowProfileModal(false)} className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 font-medium">Close</button>
-                <button onClick={handleLogout} className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 font-medium text-white">Sign Out</button>
+
+              <div className="mt-6 flex justify-end gap-3 pt-3 border-t border-slate-700">
+                <button onClick={() => setShowProfileModal(false)} className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 font-medium">Cancel</button>
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={savingProfile}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-medium text-white disabled:opacity-50"
+                >
+                  {savingProfile ? 'Saving...' : 'Save Profile'}
+                </button>
               </div>
             </motion.div>
           </div>

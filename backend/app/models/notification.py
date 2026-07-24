@@ -7,12 +7,17 @@ from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, T
 from app.core.database import Base
 
 
+from sqlalchemy.orm import relationship
+
 class Notification(Base):
     __tablename__ = "notifications"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
+
+    user = relationship("User", back_populates="notifications")
+
 
     # Urgency tier: "critical", "high", "medium"
     urgency_tier = Column(String, default="medium")

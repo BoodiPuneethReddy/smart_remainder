@@ -2,6 +2,8 @@
 api/routes/assessment.py — Assessment Agent & Spaced Repetition endpoints.
 """
 
+import re
+import math
 import json
 import logging
 from datetime import datetime, timezone
@@ -358,6 +360,16 @@ def get_learning_profile(
 
 # ─── Socratic Tutor Schemas ────────────────────────────────────────────────────
 
+class CreateLinearSessionRequest(BaseModel):
+    document_id: int
+    personality: str = "Socratic Tutor"
+    goal: str = "General Learning"
+    learning_mode: str = "Teach Me"
+    assessment_type: str = "Mixed"
+    difficulty: str = "Adaptive"
+    session_length: str = "60 min"
+
+
 class TutorStartRequest(BaseModel):
     subject: str
     topic: str
@@ -547,3 +559,234 @@ def get_objectives(
         "priority_stars": o.priority_stars,
         "is_mastered": o.is_mastered
     } for o in objectives]
+
+
+# ─── Linear Learning Workspace Endpoints ────────────────────────────────────────
+
+import math
+
+class DocumentAnalysisResponse(BaseModel):
+    document_id: int
+    filename: str
+    subject: str
+    has_educational_content: bool
+    message: Optional[str] = None
+    topics_count: int
+    topics: List[str]
+    pages_count: int
+    estimated_session_minutes: int
+    difficulty: str
+    reading_time_minutes: int
+    question_count: int
+
+
+from app.services.document_graph import DocumentGraphParser, SemanticTitleCleaner
+
+
+def clean_heading_title(line: str) -> str:
+    return SemanticTitleCleaner.clean(line)
+
+
+def get_topic_content_block(text: str, target_topic: str) -> dict:
+    """
+    Retrieves the specific TopicNode from the DocumentGraph for target_topic.
+    Returns structured content, paragraphs, definitions, examples, and keywords.
+    """
+    if not text or not target_topic:
+        return {"title": target_topic, "content": "", "summary": f"Study section for {target_topic}", "keywords": [target_topic]}
+
+    graph = DocumentGraphParser.build_graph(text, "document")
+    target_clean = SemanticTitleCleaner.clean(target_topic).lower()
+
+    matched_node = None
+    for node in graph.get("topics", []):
+        t_clean = node["title"].lower()
+        if target_clean in t_clean or t_clean in target_clean:
+            matched_node = node
+            break
+
+    if not matched_node and graph.get("topics"):
+        matched_node = graph["topics"][0]
+
+    if matched_node:
+        paragraphs = matched_node.get("supporting_paragraphs", [])
+        content_text = "\n".join(paragraphs).strip()
+        return {
+            "title": matched_node["title"],
+            "summary": matched_node["summary"],
+            "content": content_text,
+            "keywords": matched_node["keywords"],
+            "definitions": matched_node["definitions"],
+            "examples": matched_node["examples"],
+            "learning_objectives": matched_node["learning_objectives"],
+            "question_bank": matched_node["question_bank"],
+            "est_minutes": matched_node["est_minutes"],
+            "difficulty": matched_node["difficulty"]
+        }
+
+    return {
+        "title": SemanticTitleCleaner.clean(target_topic),
+        "summary": f"Section overview for {target_topic}",
+        "content": text[:500],
+        "keywords": [target_topic],
+        "definitions": [],
+        "examples": [],
+        "learning_objectives": [f"Understand {target_topic}"],
+        "question_bank": [],
+        "est_minutes": 15,
+        "difficulty": 3
+    }
+
+
+def extract_topics_from_text(text: str, filename: str) -> tuple[bool, str, List[str], int, int, int]:
+    """
+    Parses raw PDF text using DocumentGraphParser into a structured Semantic Knowledge Graph.
+    Fully data-driven and generalized for ANY educational PDF (Biology, Law, Chemistry, CS, Physics, etc.).
+    Returns: (has_educational_content, subject, topics, page_count, est_minutes, question_count)
+    """
+    if not text or len(text.strip()) < 30:
+        return False, "Unknown", [], 1, 0, 0
+
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    text_lower = text.lower()
+    
+    task_keywords = ["due date", "submission deadline", "timetable", "schedule", "quiz date", "exam date", "venue", "instructor", "rules", "submission"]
+    educational_keywords = ["concept", "chapter", "unit", "definition", "algorithm", "theory", "principle", "introduction", "process", "management", "architecture", "overview", "model", "system", "infrastructure", "hardware", "software", "data", "analysis", "method", "structure", "function", "classification", "property", "equation", "law", "mechanism"]
+
+    edu_count = sum(1 for kw in educational_keywords if kw in text_lower)
+    task_count = sum(1 for kw in task_keywords if kw in text_lower)
+
+    if edu_count < 2 and task_count > 0 and len(lines) < 25:
+        return False, "Academic Schedule", [], 1, 0, 0
+
+    graph = DocumentGraphParser.build_graph(text, filename)
+    subject = graph.get("subject", "General Academic Study")
+    topics = [t["title"] for t in graph.get("topics", []) if t.get("title")]
+
+    if not topics:
+        topics = ["Core Concepts & Definitions", "Foundational Principles", "System Architecture & Theory", "Applications & Analysis"]
+
+    words_count = len(text.split())
+    pages_count = max(1, math.ceil(words_count / 250))
+    est_minutes = max(15, math.ceil(words_count / 40))
+    question_count = max(4, len(topics) * 2)
+
+    return True, subject, topics, pages_count, est_minutes, question_count
+
+
+@router.get("/documents")
+def get_user_learning_documents(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    docs = db.query(ImportedDocument).filter(ImportedDocument.user_id == current_user.id).order_by(ImportedDocument.uploaded_at.desc()).all()
+    return [{
+        "id": d.id,
+        "filename": d.original_filename,
+        "subject": d.document_type or "General",
+        "created_at": d.uploaded_at.isoformat()
+    } for d in docs]
+
+
+@router.post("/analyze-document", response_model=DocumentAnalysisResponse)
+def analyze_learning_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    doc = db.query(ImportedDocument).filter(
+        and_(ImportedDocument.id == document_id, ImportedDocument.user_id == current_user.id)
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    has_edu, subj, topics, pages, est_min, q_count = extract_topics_from_text(
+        doc.extracted_text or "", doc.original_filename
+    )
+
+    if not has_edu:
+        return DocumentAnalysisResponse(
+            document_id=doc.id,
+            filename=doc.original_filename,
+            subject=subj,
+            has_educational_content=False,
+            message="This document contains schedules/tasks but not enough educational content for an AI learning session. Upload lecture notes or textbooks to begin AI tutoring.",
+            topics_count=0,
+            topics=[],
+            pages_count=pages,
+            estimated_session_minutes=0,
+            difficulty="N/A",
+            reading_time_minutes=0,
+            question_count=0
+        )
+
+    return DocumentAnalysisResponse(
+        document_id=doc.id,
+        filename=doc.original_filename,
+        subject=subj,
+        has_educational_content=True,
+        message=None,
+        topics_count=len(topics),
+        topics=topics,
+        pages_count=pages,
+        estimated_session_minutes=est_min,
+        difficulty="Intermediate",
+        reading_time_minutes=max(5, int(est_min * 0.3)),
+        question_count=q_count
+    )
+
+
+@router.post("/create-session")
+def create_linear_session(
+    req: CreateLinearSessionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    ai_client: AIInferenceClient = Depends(get_ai_client_dep),
+):
+    doc = db.query(ImportedDocument).filter(
+        and_(ImportedDocument.id == req.document_id, ImportedDocument.user_id == current_user.id)
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    has_edu, subj, topics, pages, est_min, q_count = extract_topics_from_text(
+        doc.extracted_text or "", doc.original_filename
+    )
+
+    if not has_edu:
+        raise HTTPException(status_code=400, detail="This document contains schedules/tasks but not enough educational content for an AI learning session. Upload lecture notes or textbooks to begin AI tutoring.")
+
+    first_topic = topics[0] if topics else f"Complete Document Study ({doc.original_filename})"
+
+    session = TutorService.initialize_session(
+        db=db,
+        ai_client=ai_client,
+        user_id=current_user.id,
+        subject=subj,
+        topic=first_topic,
+        difficulty_level=1,
+        assessment_type=req.assessment_type,
+        target_goal=req.goal,
+        teacher_personality=req.personality,
+        learning_mode=req.learning_mode,
+        document_id=req.document_id
+    )
+
+    first_msg = db.query(TutorMessage).filter(TutorMessage.session_id == session.id).first()
+    first_question = first_msg.content if first_msg else f"Welcome to your AI study session for **{subj}**!"
+
+    return {
+        "session_id": session.id,
+        "subject": subj,
+        "filename": doc.original_filename,
+        "personality": req.personality,
+        "goal": req.goal,
+        "learning_mode": req.learning_mode,
+        "assessment_type": req.assessment_type,
+        "topics": topics,
+        "total_topics": len(topics),
+        "estimated_minutes": est_min,
+        "current_topic_index": 0,
+        "current_state": "WAITING_FOR_ANSWER",
+        "first_question": first_question
+    }

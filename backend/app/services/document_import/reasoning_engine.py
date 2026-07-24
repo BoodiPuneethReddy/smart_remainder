@@ -102,11 +102,17 @@ class AcademicReasoningEngine:
                 if details.startswith(":") or details.startswith("-"):
                     details = details[1:].strip()
 
+                # If details is empty (two-column table layout where Item and Details are on consecutive lines)
+                if not details and i + 1 < len(lines):
+                    next_line = lines[i + 1].strip()
+                    if not any(next_line.lower().startswith(it.lower()) for it in known_items):
+                        details = next_line
+
                 raw_events.append({
                     "line_idx": i,
                     "item_name": matched_item,
                     "details": details,
-                    "source_sentence": line
+                    "source_sentence": f"{line} {details}".strip()
                 })
 
         return raw_events

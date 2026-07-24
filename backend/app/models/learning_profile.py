@@ -3,15 +3,21 @@ models/learning_profile.py — Stores topic-specific learning metrics and memory
 """
 
 from datetime import datetime, timezone
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy.orm import relationship
 from app.core.database import Base
 
 
 class LearningProfile(Base):
     __tablename__ = "learning_profiles"
+    __table_args__ = (
+        UniqueConstraint("user_id", "subject", "topic", name="uq_user_subj_topic"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user = relationship("User", back_populates="learning_profiles")
+
     
     subject = Column(String, nullable=False, index=True)
     topic = Column(String, nullable=False, index=True)

@@ -9,7 +9,8 @@ class TutorSession(Base):
     __tablename__ = "tutor_sessions"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user = relationship("User", back_populates="tutor_sessions")
     subject = Column(String, index=True, nullable=False)
     topic = Column(String, index=True, nullable=False)
     difficulty_level = Column(Integer, default=1, nullable=False)  # 1-6 levels
@@ -17,6 +18,16 @@ class TutorSession(Base):
     target_goal = Column(String, default="General Learning", nullable=False)
     teacher_personality = Column(String, default="Socratic Tutor", nullable=False)
     learning_mode = Column(String, default="Mixed", nullable=False)
+
+    # Explicit State Machine Columns
+    current_state = Column(String, default="WAITING_FOR_ANSWER", nullable=True)
+    current_topic_index = Column(Integer, default=0, nullable=True)
+    current_question_text = Column(Text, nullable=True)
+    expected_answer = Column(Text, nullable=True)
+    score = Column(Float, default=0.0, nullable=True)
+    attempts = Column(Integer, default=0, nullable=True)
+    status = Column(String, default="active", nullable=True)
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     messages = relationship("TutorMessage", back_populates="session", cascade="all, delete-orphan")

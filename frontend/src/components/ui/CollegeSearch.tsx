@@ -39,7 +39,7 @@ export default function CollegeSearch({ value, onChange, error, disabled }: Coll
     if (value) onChange(null); // Clear selection when typing again
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!q.trim() || q.length < 2) {
+    if (!q.trim()) {
       setResults([]);
       setIsOpen(false);
       return;

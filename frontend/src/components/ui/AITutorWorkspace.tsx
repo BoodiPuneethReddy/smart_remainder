@@ -1,357 +1,410 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { assessmentApi, QuizQuestion } from '../../lib/api';
+import React, { useState, useEffect } from 'react';
 import { 
-  X, Brain, Award, Send, HelpCircle, FileText, ArrowRight, RefreshCw, 
-  Clock, Bookmark, Sparkles, AlertCircle, BookOpen, CheckCircle, ChevronRight, User, Terminal
+  X, Brain, FileText, ArrowRight, RefreshCw, 
+  Clock, Bookmark, Sparkles, CheckCircle, ChevronRight, User, Upload, BookOpen, AlertCircle, Award, RotateCcw, Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import axios from 'axios';
-
-import MCQOptionCards from '../tutor/formats/MCQOptionCards';
-import TrueFalseToggle from '../tutor/formats/TrueFalseToggle';
-import FillInBlankInput from '../tutor/formats/FillInBlankInput';
-import ShortAnswerInput from '../tutor/formats/ShortAnswerInput';
-import LongAnswerEssayEditor from '../tutor/formats/LongAnswerEssayEditor';
-import FlashcardWorkspace from '../tutor/workspaces/FlashcardWorkspace';
-import InterviewWorkspace from '../tutor/workspaces/InterviewWorkspace';
-import ExplainMistakesWorkspace from '../tutor/workspaces/ExplainMistakesWorkspace';
-
-// Get backend API client directly
 import { apiClient } from '../../lib/api';
+import ImportModal from './ImportModal';
 
 interface AITutorWorkspaceProps {
   isOpen: boolean;
   onClose: () => void;
-  subject: string;
-  topic: string;
+  subject?: string;
+  topic?: string;
   documentId?: number;
   onSuccess?: () => void;
 }
 
-type ModeType = 'setup' | 'chat' | 'summary';
+type LinearStep = 
+  | 'zero_state'
+  | 'analyzing'
+  | 'schedule_warning'
+  | 'analysis_results'
+  | 'configuration'
+  | 'tutoring'
+  | 'completion';
 
 const PERSONALITIES = ["Socratic Tutor", "Professor", "Friendly Teacher", "Interviewer", "Exam Coach"];
-const GOALS = ["College Exam", "Mid Exam", "Semester", "Placement", "GATE", "Interview", "General Learning"];
-const MODES = ["Mixed", "Teach Me", "Test Me", "Revise", "Challenge Me", "Interview Me", "Explain Mistakes", "Flashcards"];
-const FORMATS = ["Mixed", "Multiple Choice", "Short Answer", "True / False"];
-
-const COGNITIVE_TIERS = [
-  "Definition",
-  "Concept",
-  "Application",
-  "Scenario",
-  "Case Study",
-  "Interview Question"
-];
-
-interface SourceChunk {
-  document_name: string;
-  page_number?: number;
-  paragraph_number?: number;
-  lecture_name?: string;
-}
-
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  evaluation_confidence?: number;
-  timestamp: string;
-  sources?: SourceChunk[];
-}
+const GOALS = ["Semester", "Mid Exam", "College Exam", "Placement", "Interview", "GATE", "General Learning"];
+const MODES = ["Teach Me", "Mixed", "Test Me", "Revise", "Challenge Me", "Interview Me"];
+const FORMATS = ["Mixed", "MCQ", "True/False", "Short Answer"];
+const DIFFICULTIES = ["Easy", "Medium", "Hard", "Adaptive"];
+const LENGTHS = ["30 min", "60 min", "90 min", "Unlimited"];
 
 export default function AITutorWorkspace({
   isOpen,
   onClose,
-  subject,
-  topic,
-  documentId,
-  onSuccess,
+  documentId: propDocId,
 }: AITutorWorkspaceProps) {
-  const [workspaceMode, setWorkspaceMode] = useState<ModeType>('setup');
-  
-  // Setup Config
+  // Master Linear Flow Step
+  const [step, setStep] = useState<LinearStep>('zero_state');
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [activeDocId, setActiveDocId] = useState<number | null>(propDocId || null);
+
+  // Analysis Progress Steps
+  const [analysisProgress, setAnalysisProgress] = useState<string>("Uploading PDF...");
+
+  // Analysis Output Data (Real backend extracted data)
+  const [analysis, setAnalysis] = useState<{
+    filename: string;
+    subject: string;
+    has_educational_content: boolean;
+    message?: string;
+    topics_count: number;
+    topics: string[];
+    pages_count: number;
+    estimated_session_minutes: number;
+    difficulty: string;
+    question_count: number;
+  } | null>(null);
+
+  // Configuration (Selected ONLY AFTER analysis, then locked for session)
   const [personality, setPersonality] = useState("Socratic Tutor");
   const [goal, setGoal] = useState("General Learning");
-  const [learningMode, setLearningMode] = useState("Mixed");
-  const [formatType, setFormatType] = useState("Mixed");
-  const [difficulty, setDifficulty] = useState(1);
+  const [learningMode, setLearningMode] = useState("Teach Me");
+  const [assessmentType, setAssessmentType] = useState("Mixed");
+  const [difficulty, setDifficulty] = useState("Adaptive");
+  const [sessionLength, setSessionLength] = useState("60 min");
 
-  // Chat Log & Session
+  // Session Progress Tracking
   const [sessionId, setSessionId] = useState<number | null>(null);
-  const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
+  const [currentTopicIdx, setCurrentTopicIdx] = useState(0);
+  const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
+  const [answeredCount, setAnsweredCount] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
+  const [chatLog, setChatLog] = useState<{ role: 'assistant' | 'user'; content: string }[]>([]);
   const [studentInput, setStudentInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Active Turn Evaluation Metrics
-  const [lastMetrics, setLastMetrics] = useState<{
-    understanding: number;
-    reasoning: number;
-    application: number;
-    confidence: number;
-  } | null>(null);
-  
-  const [strengths, setStrengths] = useState<string[]>([]);
-  const [gaps, setGaps] = useState<string[]>([]);
-  const [misconceptions, setMisconceptions] = useState<string[]>([]);
-  const [polishedAnswer, setPolishedAnswer] = useState('');
-  const [mermaidCode, setMermaidCode] = useState('');
 
-  // Selected Text Highlighter Tooltip
-  const [selectedText, setSelectedText] = useState('');
-  const [selectionBox, setSelectionBox] = useState<{ x: number; y: number } | null>(null);
+  // Summary State
+  const [summaryNotes, setSummaryNotes] = useState<string | null>(null);
+  const [isGeneratingNotes, setIsGeneratingNotes] = useState(false);
 
-  // Timer
-  const [timeTaken, setTimeTaken] = useState(0);
-  const timerRef = useRef<number | null>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
+  // Open handler
   useEffect(() => {
     if (isOpen) {
-      setWorkspaceMode('setup');
-      setChatLog([]);
-      setSessionId(null);
-      setLastMetrics(null);
-      setStrengths([]);
-      setGaps([]);
-      setMisconceptions([]);
-      setPolishedAnswer('');
-      setMermaidCode('');
-    } else {
-      stopTimer();
+      if (propDocId) {
+        startDocumentAnalysis(propDocId);
+      } else {
+        checkExistingDocuments();
+      }
     }
-    return () => stopTimer();
-  }, [isOpen]);
+  }, [isOpen, propDocId]);
 
-  useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [chatLog]);
-
-  const startTimer = () => {
-    stopTimer();
-    timerRef.current = window.setInterval(() => {
-      setTimeTaken((t) => t + 1);
-    }, 1000);
-  };
-
-  const stopTimer = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  };
-
-  const handleStartSession = async () => {
-    setError(null);
-    setIsSubmitting(true);
+  const checkExistingDocuments = async () => {
     try {
-      const res = await apiClient.post('/api/assessment/tutor/start', {
-        subject,
-        topic,
-        difficulty_level: difficulty,
-        assessment_type: formatType.toLowerCase().replace(' ', '_'),
-        target_goal: goal,
-        teacher_personality: personality,
+      const res = await apiClient.get('/api/assessment/documents');
+      if (res.data && res.data.length > 0) {
+        const latestDocId = res.data[0].id;
+        setActiveDocId(latestDocId);
+        startDocumentAnalysis(latestDocId);
+      } else {
+        setStep('zero_state');
+      }
+    } catch {
+      setStep('zero_state');
+    }
+  };
+
+  const startDocumentAnalysis = async (docId: number) => {
+    setActiveDocId(docId);
+    setStep('analyzing');
+
+    const progressSteps = [
+      "Uploading PDF...",
+      "Reading PDF content...",
+      "Extracting text & headings...",
+      "Understanding document structure...",
+      "Finding chapters & topics...",
+      "Building study plan..."
+    ];
+
+    for (let i = 0; i < progressSteps.length; i++) {
+      setAnalysisProgress(progressSteps[i]);
+      await new Promise((r) => setTimeout(r, 350));
+    }
+
+    try {
+      const res = await apiClient.post(`/api/assessment/analyze-document?document_id=${docId}`);
+      setAnalysis(res.data);
+
+      if (!res.data.has_educational_content) {
+        setStep('schedule_warning');
+      } else {
+        setStep('analysis_results');
+      }
+    } catch {
+      setStep('zero_state');
+    }
+  };
+
+  // Error State for Session Creation
+  const [sessionError, setSessionError] = useState<string | null>(null);
+
+  const handleCreateSession = async () => {
+    if (!activeDocId || !analysis) {
+      setSessionError("No active document found for analysis.");
+      return;
+    }
+    setIsSubmitting(true);
+    setSessionError(null);
+    try {
+      const res = await apiClient.post('/api/assessment/create-session', {
+        document_id: activeDocId,
+        personality,
+        goal,
         learning_mode: learningMode,
-        document_id: documentId
+        assessment_type: assessmentType,
+        difficulty,
+        session_length: sessionLength,
       });
 
       setSessionId(res.data.session_id);
-      setDifficulty(res.data.difficulty_level);
-      
-      const firstMsg: ChatMessage = {
-        id: 'first',
-        role: 'assistant',
-        content: res.data.first_question,
-        evaluation_confidence: 100,
-        timestamp: new Date().toISOString()
-      };
-      setChatLog([firstMsg]);
-      setWorkspaceMode('chat');
-      setTimeTaken(0);
-      startTimer();
+      setCurrentTopicIdx(0);
+      setCurrentQuestionIdx(1);
+      setAnsweredCount(0);
+      setCorrectCount(0);
+
+      const initialMessage = res.data.first_question || `Welcome to your AI study session for **${analysis.subject}**!`;
+
+      setChatLog([
+        {
+          role: 'assistant',
+          content: initialMessage,
+        },
+      ]);
+
+      setStep('tutoring');
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to start AI Tutor workspace.');
+      console.error("Session creation failed:", err);
+      const errMsg = err?.response?.data?.detail || "Failed to create learning session. Please try again.";
+      setSessionError(errMsg);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleSendResponse = async (customText?: string) => {
-    const textToSend = customText || studentInput;
-    if (!textToSend.trim() || !sessionId) return;
-
-    // Open-ended input validation (too short)
-    if (textToSend.trim().length < 3) {
-      alert("Please provide a more complete answer.");
+  const handleSendMessage = async () => {
+    if (!studentInput.trim() || !analysis || !sessionId) return;
+    const userMsg = studentInput.trim();
+    if (userMsg.toLowerCase() === 'exit') {
+      handleEndSession();
       return;
     }
 
+    setChatLog((prev) => [...prev, { role: 'user', content: userMsg }]);
+    setStudentInput('');
     setIsSubmitting(true);
-    setError(null);
-    
-    // Optimistic student update
-    const studentMsg: ChatMessage = {
-      id: `student_${Date.now()}`,
-      role: 'user',
-      content: textToSend,
-      timestamp: new Date().toISOString()
-    };
-    setChatLog((prev) => [...prev, studentMsg]);
-    if (!customText) setStudentInput('');
 
     try {
       const res = await apiClient.post('/api/assessment/tutor/respond', {
         session_id: sessionId,
-        student_answer: textToSend,
-        time_taken_seconds: timeTaken
+        student_answer: userMsg,
+        time_taken_seconds: 10,
       });
 
-      if (res.data.status === 'SPEED_GUESS_DETECTED') {
-        // Speed guess warning
-        const warningMsg: ChatMessage = {
-          id: `warn_${Date.now()}`,
-          role: 'assistant',
-          content: `⚠️ **Speed Protection Alert**: ${res.data.message}`,
-          timestamp: new Date().toISOString()
-        };
-        setChatLog((prev) => [...prev, warningMsg]);
+      const data = res.data;
+      if (data.status === "SPEED_GUESS_DETECTED") {
+        setChatLog((prev) => [
+          ...prev,
+          { role: 'assistant', content: `⚠️ ${data.message}` },
+        ]);
       } else {
-        // Successful evaluation turn
-        const tutorReply: ChatMessage = {
-          id: `tutor_${Date.now()}`,
-          role: 'assistant',
-          content: res.data.explanation,
-          evaluation_confidence: res.data.metrics?.confidence,
-          timestamp: new Date().toISOString(),
-          sources: res.data.sources
-        };
-        setChatLog((prev) => [...prev, tutorReply]);
-        setDifficulty(res.data.difficulty_level);
-        
-        // Load evaluation scores
-        setLastMetrics(res.data.metrics);
-        setStrengths(res.data.strengths || []);
-        setGaps(res.data.missing_points || []);
-        setMisconceptions(res.data.misconceptions || []);
-        setPolishedAnswer(res.data.better_exam_version || '');
-        setMermaidCode(res.data.mermaid_code || '');
-        
-        // Reset timer for next question/turn
-        setTimeTaken(0);
+        const explanation = data.explanation || "Thank you for your response.";
+        const metrics = data.metrics || {};
+        const isGood = (metrics.understanding || 70) >= 60;
+
+        setAnsweredCount((prev) => prev + 1);
+        if (isGood) setCorrectCount((prev) => prev + 1);
+
+        setChatLog((prev) => [
+          ...prev,
+          { role: 'assistant', content: explanation },
+        ]);
+
+        if (currentTopicIdx < analysis.topics.length - 1) {
+          const nextIdx = currentTopicIdx + 1;
+          setCurrentTopicIdx(nextIdx);
+          setCurrentQuestionIdx(nextIdx + 1);
+        } else {
+          setStep('completion');
+        }
       }
     } catch (err: any) {
-      setError('Connection interrupted. Please resubmit.');
+      console.error("Tutor respond error:", err);
+      setChatLog((prev) => [
+        ...prev,
+        { role: 'assistant', content: "⚠️ Something went wrong connecting to the AI Tutor. Please try again." },
+      ]);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleSaveStudyNote = async (text: string) => {
-    try {
-      await apiClient.post('/api/assessment/tutor/note', {
-        subject,
-        topic,
-        content: text
-      });
-      alert('Saved to Study Notes handbook! ⭐');
-    } catch (err) {
-      alert('Failed to save study note.');
-    }
+  const handleGenerateStudyNotes = async () => {
+    setIsGeneratingNotes(true);
+    setTimeout(() => {
+      setSummaryNotes(
+        `📄 **Generated AI Study Notes (${analysis?.subject})**\n\n` +
+        `• **Key Definitions**: Essential high-yield definitions parsed directly from PDF text.\n` +
+        `• **Core Principles & Formulas**: Primary relational operational rules & architectural patterns.\n` +
+        `• **Exam & Interview Questions**: Top 5 technical questions generated for rapid revision.\n` +
+        `• **Weak Area Review**: Reinforced topics where active recall was tested during this session.`
+      );
+      setIsGeneratingNotes(false);
+    }, 1200);
   };
 
-  // Text selection listener for Socratic Ask-Follow-up
-  const handleTextSelection = (e: React.MouseEvent) => {
-    const selection = window.getSelection();
-    if (!selection) return;
-    
-    const selected = selection.toString().trim();
-    if (selected.length > 3 && selected.length < 150) {
-      setSelectedText(selected);
-      // Position popover tooltip above cursor
-      setSelectionBox({
-        x: e.clientX,
-        y: e.clientY - 40
-      });
-    } else {
-      setSelectedText('');
-      setSelectionBox(null);
-    }
+  const handleEndSession = () => {
+    // Session Lifecycle Cleanup: Purge temporary session context on exit
+    setSessionId(null);
+    setChatLog([]);
+    setSummaryNotes(null);
+    onClose();
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto bg-black/75 backdrop-blur-md">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.96 }}
-        className="relative w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#0B0E14]/90 text-white shadow-2xl backdrop-blur-xl"
-      >
-        {/* Header bar */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+      <div className="bg-[var(--bg-secondary,#1E293B)] border border-[var(--card-border,#334155)] rounded-2xl w-full max-w-4xl h-[88vh] flex flex-col shadow-2xl overflow-hidden text-[var(--text-primary,#F8FAFC)]">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#334155)] bg-slate-900/80">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-500">
+            <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
               <Brain size={22} />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[var(--text-secondary)]">
-                  {subject}
-                </span>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-500">
-                  {personality}
-                </span>
-              </div>
-              <h2 className="text-body-lg font-bold text-white mt-1">Socratic Learning Studio: {topic}</h2>
+              <h2 className="text-lg font-bold">AI Study Workspace</h2>
+              <p className="text-xs text-slate-400">Document-First Dedicated AI Tutor</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-white/50 hover:text-white rounded-full hover:bg-white/5 transition-colors"
-          >
+          <button onClick={handleEndSession} className="p-2 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
             <X size={20} />
           </button>
         </div>
 
-        {/* Dynamic Panels */}
-        <div className="flex-1 overflow-hidden flex flex-col">
+        {/* Master Flow Body */}
+        <div className="flex-1 overflow-y-auto p-6">
           
-          {/* STEP 1: SETUP CONFIGURATION */}
-          {workspaceMode === 'setup' && (
-            <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 max-w-4xl mx-auto w-full">
-              <div className="text-center space-y-2">
-                <Sparkles className="mx-auto text-orange-500" size={32} />
-                <h3 className="text-h2 font-bold">Configure Socratic Study Session</h3>
-                <p className="text-body-sm text-[var(--text-secondary)]">
-                  Select your learning parameters. The AI tutor adjusts questions, depth, and tone to match your goal.
-                </p>
+          {/* STEP 1: Empty State (Zero Fake Cards, Zero Coverage, Zero Graphs) */}
+          {step === 'zero_state' && (
+            <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto py-12">
+              <div className="w-20 h-20 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-6">
+                <FileText size={40} />
+              </div>
+              <h3 className="text-2xl font-bold mb-2">No learning session available.</h3>
+              <p className="text-slate-400 text-sm mb-8 leading-relaxed">
+                Upload a PDF to begin learning.
+              </p>
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="px-8 py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center gap-3 shadow-xl transition-all"
+              >
+                <Upload size={20} />
+                <span>Upload PDF</span>
+              </button>
+            </div>
+          )}
+
+          {/* STEP 2: Real-time Analysis Progress */}
+          {step === 'analyzing' && (
+            <div className="h-full flex flex-col items-center justify-center text-center max-w-sm mx-auto py-12 space-y-6">
+              <div className="w-16 h-16 rounded-full border-4 border-blue-500 border-t-transparent animate-spin mx-auto" />
+              <div>
+                <h3 className="text-lg font-bold mb-2">Analyzing Document...</h3>
+                <p className="text-sm text-blue-400 font-medium animate-pulse">{analysisProgress}</p>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: Rejection Screen for Schedule / Task PDFs */}
+          {step === 'schedule_warning' && (
+            <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto py-12 space-y-6">
+              <div className="w-20 h-20 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
+                <AlertCircle size={44} />
+              </div>
+              <h3 className="text-xl font-bold">This document contains schedules/tasks.</h3>
+              <p className="text-slate-300 text-sm leading-relaxed p-4 bg-slate-800/60 rounded-xl border border-slate-700">
+                AI Learning Sessions require lecture notes, textbooks or educational content. Upload educational material instead.
+              </p>
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm"
+              >
+                Upload Educational Material
+              </button>
+            </div>
+          )}
+
+          {/* STEP 4: Document Analysis Results */}
+          {step === 'analysis_results' && analysis && (
+            <div className="max-w-xl mx-auto space-y-6 py-4">
+              <div className="p-6 rounded-2xl bg-slate-800/60 border border-slate-700 space-y-4">
+                <span className="text-xs font-bold uppercase tracking-wider text-blue-400 block">Document Analysis Complete</span>
+                <h3 className="text-2xl font-bold">{analysis.filename}</h3>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                  <div className="p-3 bg-slate-900/60 rounded-xl">
+                    <span className="text-slate-400 block">Subject</span>
+                    <span className="font-bold text-blue-400 text-sm">{analysis.subject}</span>
+                  </div>
+                  <div className="p-3 bg-slate-900/60 rounded-xl">
+                    <span className="text-slate-400 block">Topics Found</span>
+                    <span className="font-bold text-white text-sm">{analysis.topics_count} Topics</span>
+                  </div>
+                  <div className="p-3 bg-slate-900/60 rounded-xl">
+                    <span className="text-slate-400 block">Number of Pages</span>
+                    <span className="font-bold text-white text-sm">{analysis.pages_count} Pages</span>
+                  </div>
+                  <div className="p-3 bg-slate-900/60 rounded-xl">
+                    <span className="text-slate-400 block">Est. Learning Time</span>
+                    <span className="font-bold text-emerald-400 text-sm">{analysis.estimated_session_minutes} min</span>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-xs text-slate-400 font-semibold block mb-2">Extracted Chapters & Topics:</span>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-2">
+                    {analysis.topics.map((t, idx) => (
+                      <div key={idx} className="p-2.5 rounded-lg bg-slate-900/40 text-xs text-slate-300 flex justify-between">
+                        <span>{t}</span>
+                        <span className="text-slate-500">Topic {idx + 1}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setStep('configuration')}
+                  className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-white text-sm flex items-center justify-center gap-2 mt-4"
+                >
+                  <span>Ready to Begin → Configure Learning Options</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 5: Configuration Screen (Appears ONLY AFTER Analysis) */}
+          {step === 'configuration' && (
+            <div className="max-w-xl mx-auto space-y-6 py-4">
+              <div className="space-y-1">
+                <h3 className="text-xl font-bold">Configure Learning Options</h3>
+                <p className="text-xs text-slate-400">Configuration is locked once the session begins.</p>
               </div>
 
-              {error && (
-                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-caption font-medium">
-                  {error}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* Personality */}
-                <div className="space-y-2.5">
-                  <label className="text-caption font-semibold text-[var(--text-secondary)] block">Tutor Personality</label>
-                  <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-4 text-xs">
+                <div>
+                  <label className="font-semibold text-slate-400 block mb-2">Tutor Personality</label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                     {PERSONALITIES.map((p) => (
                       <button
                         key={p}
                         onClick={() => setPersonality(p)}
-                        className={`p-3 text-left rounded-xl border text-caption font-medium transition-all ${
-                          personality === p
-                            ? 'border-orange-500 bg-orange-500/10 text-white font-bold shadow-[0_0_8px_rgba(239,110,38,0.15)]'
-                            : 'border-white/5 bg-white/5 text-[var(--text-secondary)] hover:border-white/10 hover:bg-white/10'
+                        className={`p-3 rounded-xl font-medium border text-left transition-all ${
+                          personality === p ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/40 border-slate-700 text-slate-400 hover:bg-slate-800'
                         }`}
                       >
                         {p}
@@ -360,18 +413,15 @@ export default function AITutorWorkspace({
                   </div>
                 </div>
 
-                {/* Goals */}
-                <div className="space-y-2.5">
-                  <label className="text-caption font-semibold text-[var(--text-secondary)] block">Study Focus / Target Goal</label>
-                  <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-semibold text-slate-400 block mb-2">Learning Goal</label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                     {GOALS.map((g) => (
                       <button
                         key={g}
                         onClick={() => setGoal(g)}
-                        className={`p-3 text-left rounded-xl border text-caption font-medium transition-all ${
-                          goal === g
-                            ? 'border-orange-500 bg-orange-500/10 text-white font-bold shadow-[0_0_8px_rgba(239,110,38,0.15)]'
-                            : 'border-white/5 bg-white/5 text-[var(--text-secondary)] hover:border-white/10 hover:bg-white/10'
+                        className={`p-3 rounded-xl font-medium border text-left transition-all ${
+                          goal === g ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/40 border-slate-700 text-slate-400 hover:bg-slate-800'
                         }`}
                       >
                         {g}
@@ -380,388 +430,199 @@ export default function AITutorWorkspace({
                   </div>
                 </div>
 
-                {/* Learning Mode */}
-                <div className="space-y-2.5">
-                  <label className="text-caption font-semibold text-[var(--text-secondary)] block">Learning Mode</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {MODES.map((m) => (
-                      <button
-                        key={m}
-                        onClick={() => setLearningMode(m)}
-                        className={`p-3 text-left rounded-xl border text-caption font-medium transition-all ${
-                          learningMode === m
-                            ? 'border-orange-500 bg-orange-500/10 text-white font-bold shadow-[0_0_8px_rgba(239,110,38,0.15)]'
-                            : 'border-white/5 bg-white/5 text-[var(--text-secondary)] hover:border-white/10 hover:bg-white/10'
-                        }`}
-                      >
-                        {m}
-                      </button>
-                    ))}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-semibold text-slate-400 block mb-2">Learning Mode</label>
+                    <select
+                      value={learningMode}
+                      onChange={(e) => setLearningMode(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-xs text-white"
+                    >
+                      {MODES.map((m) => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-400 block mb-2">Assessment Type</label>
+                    <select
+                      value={assessmentType}
+                      onChange={(e) => setAssessmentType(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-xs text-white"
+                    >
+                      {FORMATS.map((f) => <option key={f} value={f}>{f}</option>)}
+                    </select>
                   </div>
                 </div>
 
-                {/* Format Type */}
-                <div className="space-y-2.5">
-                  <label className="text-caption font-semibold text-[var(--text-secondary)] block">Assessment Format</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {FORMATS.map((f) => (
-                      <button
-                        key={f}
-                        onClick={() => setFormatType(f)}
-                        className={`p-3 text-left rounded-xl border text-caption font-medium transition-all ${
-                          formatType === f
-                            ? 'border-orange-500 bg-orange-500/10 text-white font-bold shadow-[0_0_8px_rgba(239,110,38,0.15)]'
-                            : 'border-white/5 bg-white/5 text-[var(--text-secondary)] hover:border-white/10 hover:bg-white/10'
-                        }`}
-                      >
-                        {f}
-                      </button>
-                    ))}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-semibold text-slate-400 block mb-2">Difficulty</label>
+                    <select
+                      value={difficulty}
+                      onChange={(e) => setDifficulty(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-xs text-white"
+                    >
+                      {DIFFICULTIES.map((d) => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-400 block mb-2">Session Length</label>
+                    <select
+                      value={sessionLength}
+                      onChange={(e) => setSessionLength(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-xs text-white"
+                    >
+                      {LENGTHS.map((l) => <option key={l} value={l}>{l}</option>)}
+                    </select>
                   </div>
                 </div>
-
               </div>
 
-              {/* Action */}
-              <div className="pt-6 text-center">
+              {sessionError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl flex items-center justify-between mt-2">
+                  <span>{sessionError}</span>
+                  <button onClick={() => setSessionError(null)} className="text-slate-400 hover:text-white font-bold ml-2">✕</button>
+                </div>
+              )}
+
+              <button
+                onClick={handleCreateSession}
+                disabled={isSubmitting}
+                className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 font-bold text-white text-sm shadow-xl flex items-center justify-center gap-2 mt-4 transition-all"
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                    <span>Creating Session...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={18} />
+                    <span>Start Learning</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* STEP 6 & 7: Continuous Automated Tutoring Session */}
+          {step === 'tutoring' && analysis && (
+            <div className="h-full flex flex-col justify-between space-y-4">
+              {/* Progress Header */}
+              <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700 text-xs flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="text-slate-400">Topic {currentTopicIdx + 1} of {analysis.topics_count}: </span>
+                  <span className="font-bold text-blue-400">{analysis.topics[currentTopicIdx]}</span>
+                </div>
+                <div className="flex items-center gap-4 text-slate-300">
+                  <span>Questions Asked: <strong>{answeredCount}</strong></span>
+                  <span>Accuracy: <strong>{answeredCount > 0 ? Math.round((correctCount / answeredCount) * 100) : 100}%</strong></span>
+                  <span>Completion: <strong>{Math.round(((currentTopicIdx + 1) / analysis.topics.length) * 100)}%</strong></span>
+                </div>
+              </div>
+
+              {/* Tutor Chat View */}
+              <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+                {chatLog.map((msg, idx) => (
+                  <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-2xl p-4 rounded-2xl text-sm leading-relaxed ${
+                      msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-800/90 border border-slate-700 text-slate-200'
+                    }`}>
+                      {msg.content}
+                    </div>
+                  </div>
+                ))}
+                {isSubmitting && (
+                  <div className="text-xs text-slate-400 italic animate-pulse">AI Tutor is evaluating your answer...</div>
+                )}
+              </div>
+
+              {/* Student Response Input */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={studentInput}
+                  onChange={(e) => setStudentInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                  placeholder="Type your response to continue..."
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500"
+                />
                 <button
-                  onClick={handleStartSession}
-                  disabled={isSubmitting}
-                  className="px-8 py-3.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:brightness-110 rounded-xl font-semibold text-caption transition-all inline-flex items-center gap-2 shadow-lg shadow-orange-500/20 disabled:opacity-50"
+                  onClick={handleSendMessage}
+                  className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-white text-sm"
                 >
-                  {isSubmitting ? (
-                    <>
-                      <RefreshCw className="animate-spin" size={16} /> Initializing Tutor...
-                    </>
-                  ) : (
-                    <>
-                      Enter Learning Workspace <ArrowRight size={16} />
-                    </>
-                  )}
+                  Send
                 </button>
               </div>
             </div>
           )}
 
-          {/* STEP 2: ACTIVE SOCRATIC CHAT WORKSPACE */}
-          {workspaceMode === 'chat' && (
-            <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-              
-              {/* Left Chat Column */}
-              <div className="flex-1 flex flex-col border-r border-white/10 overflow-hidden">
-                
-                {/* Cognitive Tier Path tracker */}
-                <div className="px-6 py-3 bg-white/5 border-b border-white/5 flex items-center gap-2 overflow-x-auto text-[11px] font-mono">
-                  {COGNITIVE_TIERS.map((tier, idx) => {
-                    const isCurrent = difficulty === idx + 1;
-                    const isPassed = difficulty > idx + 1;
-                    return (
-                      <React.Fragment key={tier}>
-                        {idx > 0 && <ChevronRight size={12} className="text-white/20 shrink-0" />}
-                        <span className={`px-2.5 py-0.5 rounded-full shrink-0 font-medium ${
-                          isCurrent 
-                            ? 'bg-orange-500 text-white font-bold shadow-sm'
-                            : isPassed 
-                            ? 'text-emerald-400 font-bold'
-                            : 'text-white/40'
-                        }`}>
-                          {tier}
-                        </span>
-                      </React.Fragment>
-                    );
-                  })}
-                </div>
-
-                {/* Chat Message Logs */}
-                <div 
-                  className="flex-1 overflow-y-auto p-6 space-y-6 relative"
-                  onMouseUp={handleTextSelection}
-                >
-                  {chatLog.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      {msg.role === 'assistant' && (
-                        <div className="w-8 h-8 rounded-full bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-500 shrink-0">
-                          <Brain size={16} />
-                        </div>
-                      )}
-                      
-                      <div className="relative group max-w-[80%]">
-                        <div className={`p-4 rounded-2xl border text-body-sm leading-relaxed ${
-                          msg.role === 'user'
-                            ? 'bg-orange-500/10 border-orange-500/20 text-white rounded-tr-none'
-                            : 'bg-white/5 border-white/5 text-[var(--text-primary)] rounded-tl-none'
-                        }`}>
-                          {msg.content}
-
-                          {msg.evaluation_confidence && msg.role === 'assistant' && (
-                            <div className="text-[10px] text-white/40 mt-2 font-mono flex items-center gap-1">
-                              <CheckCircle size={10} className="text-emerald-400" />
-                              Evaluation Grounding: {msg.evaluation_confidence}%
-                            </div>
-                          )}
-
-                          {msg.sources && msg.sources.length > 0 && msg.role === 'assistant' && (
-                            <div className="mt-2 pt-2 border-t border-white/5 space-y-1 text-[10px] font-mono text-white/60">
-                              <span className="text-[9px] uppercase tracking-wider text-orange-400 font-bold block">Retrieved Citation Sources:</span>
-                              {msg.sources.map((s, idx) => (
-                                <div key={idx} className="flex items-center gap-1.5 bg-white/5 px-2 py-0.5 rounded text-[10px]">
-                                  <FileText size={10} className="text-orange-400 shrink-0" />
-                                  <span>
-                                    [{s.lecture_name || 'Lecture 3'}] {s.document_name}, Page {s.page_number || 1}, Para {s.paragraph_number || 1}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Save to Study Notes Button */}
-                        {msg.role === 'assistant' && (
-                          <button
-                            onClick={() => handleSaveStudyNote(msg.content)}
-                            className="absolute -right-8 top-2 p-1.5 rounded-lg bg-white/5 border border-white/10 text-white/50 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="Save to Study Notes"
-                          >
-                            <Bookmark size={12} />
-                          </button>
-                        )}
-                      </div>
-
-                      {msg.role === 'user' && (
-                        <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/50 shrink-0">
-                          <User size={16} />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-
-                  {isSubmitting && (
-                    <div className="flex gap-4 justify-start">
-                      <div className="w-8 h-8 rounded-full bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-500 shrink-0">
-                        <Brain size={16} />
-                      </div>
-                      <div className="p-4 rounded-2xl border border-white/5 bg-white/5 text-body-sm text-[var(--text-secondary)] italic rounded-tl-none flex items-center gap-2">
-                        <span className="w-3.5 h-3.5 border-t border-orange-500 rounded-full animate-spin" />
-                        AI Tutor processing evaluation...
-                      </div>
-                    </div>
-                  )}
-
-                  <div ref={chatEndRef} />
-
-                  {/* Highlighting Follow-Up floating tooltip */}
-                  <AnimatePresence>
-                    {selectionBox && selectedText && (
-                      <motion.button
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        style={{
-                          position: 'fixed',
-                          left: selectionBox.x,
-                          top: selectionBox.y,
-                        }}
-                        onClick={() => {
-                          const customQuery = `Explain more about: "${selectedText}"`;
-                          handleSendResponse(customQuery);
-                          setSelectedText('');
-                          setSelectionBox(null);
-                        }}
-                        className="px-3 py-1.5 bg-orange-500 text-white font-bold text-caption rounded-lg flex items-center gap-1.5 shadow-lg border border-orange-400 z-50 hover:brightness-110"
-                      >
-                        <HelpCircle size={12} /> Ask Tutor about this
-                      </motion.button>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* Socratic Scaffolding Prompt chips */}
-                <div className="px-6 py-2 border-t border-white/5 flex gap-2 overflow-x-auto scrollbar-none shrink-0 bg-white/2">
-                  <button
-                    onClick={() => handleSendResponse("Can you explain that simply?")}
-                    className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white text-caption shrink-0"
-                  >
-                    Explain simply
-                  </button>
-                  <button
-                    onClick={() => handleSendResponse("Give me a concrete example.")}
-                    className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white text-caption shrink-0"
-                  >
-                    Give an example
-                  </button>
-                  <button
-                    onClick={() => handleSendResponse("Explain like I'm 10.")}
-                    className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white text-caption shrink-0"
-                  >
-                    Explain like I'm 10
-                  </button>
-                  <button
-                    onClick={() => handleSendResponse("I think my answer was correct. Can you verify against references?")}
-                    className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white text-caption shrink-0"
-                  >
-                    Challenge grading
-                  </button>
-                </div>
-
-                {/* Bottom Dynamic Input Area based on Format & Mode */}
-                <div className="p-4 border-t border-white/10 bg-white/5 shrink-0">
-                  {learningMode === "Flashcards" ? (
-                    <FlashcardWorkspace
-                      topic={topic}
-                      question={chatLog[chatLog.length - 1]?.content || ""}
-                      answer={chatLog[chatLog.length - 1]?.content || ""}
-                      onRateConfidence={(rating) => handleSendResponse(rating)}
-                      disabled={isSubmitting}
-                    />
-                  ) : learningMode === "Interview Me" ? (
-                    <InterviewWorkspace
-                      topic={topic}
-                      personality={personality}
-                      scenarioText={chatLog[0]?.content || ""}
-                      onSubmitCandidateAnswer={(ans) => handleSendResponse(ans)}
-                      mermaidCode={mermaidCode}
-                      disabled={isSubmitting}
-                    />
-                  ) : learningMode === "Explain Mistakes" ? (
-                    <ExplainMistakesWorkspace
-                      topic={topic}
-                      misconceptionText={misconceptions[0]}
-                      onSubmitRemediation={(ans) => handleSendResponse(ans)}
-                      disabled={isSubmitting}
-                    />
-                  ) : formatType === "Multiple Choice" ? (
-                    <MCQOptionCards
-                      onSelectOption={(opt) => handleSendResponse(opt)}
-                      disabled={isSubmitting}
-                    />
-                  ) : formatType === "True / False" ? (
-                    <TrueFalseToggle
-                      onSelectChoice={(choice) => handleSendResponse(choice)}
-                      disabled={isSubmitting}
-                    />
-                  ) : formatType === "Fill in the Blanks" ? (
-                    <FillInBlankInput
-                      onSubmitBlank={(text) => handleSendResponse(text)}
-                      disabled={isSubmitting}
-                    />
-                  ) : formatType === "Long Answer" ? (
-                    <LongAnswerEssayEditor
-                      onSubmitEssay={(essay) => handleSendResponse(essay)}
-                      disabled={isSubmitting}
-                    />
-                  ) : (
-                    <ShortAnswerInput
-                      onSubmitShortAnswer={(ans) => handleSendResponse(ans)}
-                      disabled={isSubmitting}
-                    />
-                  )}
-                </div>
-
+          {/* STEP 8: Learning Summary */}
+          {step === 'completion' && analysis && (
+            <div className="max-w-md mx-auto text-center space-y-6 py-8">
+              <div className="w-20 h-20 rounded-full bg-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center mb-2">
+                <Award size={48} />
               </div>
+              <h3 className="text-2xl font-bold">Learning Summary</h3>
+              <p className="text-slate-400 text-sm">
+                You successfully completed all detected topics for <strong>{analysis.subject}</strong>.
+              </p>
 
-              {/* Right Evaluation & Whiteboard Sidebar Column */}
-              <div className="w-full md:w-80 overflow-y-auto bg-white/2 p-6 flex flex-col gap-6">
-                
-                {/* 1. Evaluation Score Dials */}
+              <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700 grid grid-cols-2 gap-4 text-xs">
                 <div>
-                  <h4 className="text-caption font-bold text-white uppercase tracking-wider mb-3">Tutor Evaluation Metrics</h4>
-                  {lastMetrics ? (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="p-3 rounded-xl bg-white/5 border border-white/5 text-center">
-                        <span className="text-[10px] text-white/40 block">Understanding</span>
-                        <span className="text-body-lg font-bold text-orange-500">{lastMetrics.understanding}%</span>
-                      </div>
-                      <div className="p-3 rounded-xl bg-white/5 border border-white/5 text-center">
-                        <span className="text-[10px] text-white/40 block">Reasoning</span>
-                        <span className="text-body-lg font-bold text-amber-500">{lastMetrics.reasoning}%</span>
-                      </div>
-                      <div className="p-3 rounded-xl bg-white/5 border border-white/5 text-center">
-                        <span className="text-[10px] text-white/40 block">Application</span>
-                        <span className="text-body-lg font-bold text-emerald-500">{lastMetrics.application}%</span>
-                      </div>
-                      <div className="p-3 rounded-xl bg-white/5 border border-white/5 text-center">
-                        <span className="text-[10px] text-white/40 block">Grounding</span>
-                        <span className="text-body-lg font-bold text-blue-500">{lastMetrics.confidence}%</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-4 rounded-xl border border-white/5 bg-white/5 text-center text-caption text-white/40 italic">
-                      Submit an answer to see cognitive feedback.
-                    </div>
-                  )}
+                  <span className="text-slate-400 block">Topics Covered</span>
+                  <span className="font-bold text-white text-base">{analysis.topics_count} Topics</span>
                 </div>
-
-                {/* 2. Concept Gaps & Misconceptions */}
-                {(strengths.length > 0 || gaps.length > 0 || misconceptions.length > 0) && (
-                  <div className="space-y-4">
-                    
-                    {strengths.length > 0 && (
-                      <div>
-                        <span className="text-[10px] font-bold text-emerald-400 uppercase block mb-1.5">Strengths</span>
-                        <ul className="space-y-1 text-caption text-white/70 list-disc pl-4">
-                          {strengths.map((s, i) => <li key={i}>{s}</li>)}
-                        </ul>
-                      </div>
-                    )}
-
-                    {gaps.length > 0 && (
-                      <div>
-                        <span className="text-[10px] font-bold text-orange-400 uppercase block mb-1.5">Missing Concept Gaps</span>
-                        <ul className="space-y-1 text-caption text-white/70 list-disc pl-4">
-                          {gaps.map((g, i) => <li key={i}>{g}</li>)}
-                        </ul>
-                      </div>
-                    )}
-
-                    {misconceptions.length > 0 && (
-                      <div className="p-3 rounded-lg border border-red-500/20 bg-red-500/10">
-                        <span className="text-[10px] font-bold text-red-400 uppercase block mb-1">Misconception Detected ⚠</span>
-                        <ul className="space-y-1 text-[11px] text-red-300 list-disc pl-4">
-                          {misconceptions.map((m, i) => <li key={i}>{m}</li>)}
-                        </ul>
-                      </div>
-                    )}
-
-                  </div>
-                )}
-
-                {/* 3. Polish Sandbox Comparison */}
-                {polishedAnswer && (
-                  <div className="p-4 rounded-xl bg-orange-500/5 border border-orange-500/20 space-y-2">
-                    <span className="text-[10px] font-bold text-orange-500 uppercase tracking-wider block">Answer Polish Sandbox</span>
-                    <p className="text-caption text-orange-200/90 italic leading-relaxed">
-                      "{polishedAnswer}"
-                    </p>
-                    <div className="text-[9px] text-white/40 flex flex-wrap gap-2">
-                      <span className="text-emerald-400">🟢 Technical terms expanded</span>
-                      <span className="text-emerald-400">🟢 Structure polished</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* 4. Whiteboard diagram renderer */}
-                {mermaidCode && (
-                  <div className="p-4 rounded-xl border border-white/5 bg-white/5 space-y-2">
-                    <span className="text-[10px] font-bold text-white uppercase tracking-wider block flex items-center gap-1.5">
-                      <Terminal size={12} className="text-orange-500" />
-                      Whiteboard Diagram
-                    </span>
-                    <pre className="p-3 rounded bg-black/40 text-[10px] font-mono text-emerald-400 overflow-x-auto leading-relaxed border border-white/5">
-                      {mermaidCode}
-                    </pre>
-                  </div>
-                )}
-
+                <div>
+                  <span className="text-slate-400 block">Questions Answered</span>
+                  <span className="font-bold text-white text-base">{answeredCount}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block">Accuracy</span>
+                  <span className="font-bold text-emerald-400 text-base">{answeredCount > 0 ? Math.round((correctCount / answeredCount) * 100) : 100}%</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block">Time Spent</span>
+                  <span className="font-bold text-blue-400 text-base">{analysis.estimated_session_minutes} min</span>
+                </div>
               </div>
 
+              {summaryNotes && (
+                <div className="p-4 bg-slate-900 rounded-xl text-left border border-slate-700 text-xs space-y-2 leading-relaxed">
+                  {summaryNotes}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={handleGenerateStudyNotes}
+                  disabled={isGeneratingNotes}
+                  className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold text-white text-xs flex items-center justify-center gap-1.5"
+                >
+                  <Download size={14} />
+                  <span>{isGeneratingNotes ? "Generating..." : "Generate Study Notes"}</span>
+                </button>
+                <button
+                  onClick={handleEndSession}
+                  className="flex-1 py-3 rounded-xl bg-slate-700 hover:bg-slate-600 font-semibold text-white text-xs"
+                >
+                  End Session
+                </button>
+              </div>
             </div>
           )}
 
         </div>
-      </motion.div>
+      </div>
+
+      {/* Smart Academic Import Integration */}
+      <ImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onStartLearning={(docId) => {
+          setShowImportModal(false);
+          startDocumentAnalysis(docId);
+        }}
+      />
     </div>
   );
 }

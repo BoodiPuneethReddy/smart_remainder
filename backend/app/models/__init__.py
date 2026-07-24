@@ -16,10 +16,13 @@ from app.models.question_citation import QuestionCitation
 from app.models.tutor_session import TutorSession, TutorMessage, TutorMessageChunk
 from app.models.learning_objective import LearningObjective
 from app.models.tutor_bookmark import TutorBookmark
+from app.models.mistake_journal import MistakeJournal
+from app.models.study_note import StudyNote
 
 __all__ = [
     "User", "Task", "StudySession", "Notification", "Recommendation",
     "College", "CollegeAlias", "OTPCode", "ImportedDocument",
     "LearningProfile", "QuestionCitation", "TutorSession", 
     "TutorMessage", "TutorMessageChunk", "LearningObjective", "TutorBookmark",
+    "MistakeJournal", "StudyNote",
 ]

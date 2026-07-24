@@ -1,0 +1,7 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-8.2.0, pluggy-1.6.0 -- C:\Users\kallu\OneDrive\Desktop\smart-study-reminder-ai\smart-study-reminder-ai\backend\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\kallu\OneDrive\Desktop\smart-study-reminder-ai\smart-study-reminder-ai\backend
+plugins: anyio-4.14.2, asyncio-0.23.6
+asyncio: mode=Mode.STRICT
+collecting ... 

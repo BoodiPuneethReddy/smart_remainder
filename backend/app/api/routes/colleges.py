@@ -29,14 +29,8 @@ def search_colleges(
     db: Session = Depends(get_db),
 ):
     """
-    Search colleges by name, state, district, or alias.
-    Supports partial matches, substring matches, and curated acronyms (e.g. 'SVCE').
-
-    Returns top results ranked by relevance:
-      1. Alias exact match
-      2. College name prefix
-      3. College name substring
-      4. State/district match
+    Search colleges by name, university, state, district, or alias.
+    Supports case-insensitive partial matching across all fields.
     """
     q_stripped = q.strip()
     if not q_stripped:
@@ -45,40 +39,35 @@ def search_colleges(
     q_lower = q_stripped.lower()
     q_like = f"%{q_stripped}%"
 
-    # Find college IDs that match via alias first
-    alias_matches = (
-        db.query(CollegeAlias.college_id)
-        .filter(CollegeAlias.alias.ilike(q_like))
-        .all()
-    )
-    alias_college_ids = {row[0] for row in alias_matches}
-
-    # Query colleges
     colleges = (
         db.query(College)
+        .outerjoin(CollegeAlias, College.id == CollegeAlias.college_id)
         .filter(
             College.is_active == True,
             or_(
-                College.id.in_(alias_college_ids),
                 College.college_name.ilike(q_like),
+                College.university.ilike(q_like),
                 College.state.ilike(q_like),
                 College.district.ilike(q_like),
+                CollegeAlias.alias.ilike(q_like),
             )
         )
-        .limit(limit * 3)  # Over-fetch for ranking
+        .distinct()
+        .limit(limit * 3)
         .all()
     )
 
-    # Rank results: alias match first, then prefix, then substring
     def rank(c: College) -> int:
         name_lower = c.college_name.lower()
-        if c.id in alias_college_ids:
-            return 0
         if name_lower.startswith(q_lower):
-            return 1
+            return 0
         if q_lower in name_lower:
+            return 1
+        if c.district and q_lower in c.district.lower():
             return 2
-        return 3
+        if c.state and q_lower in c.state.lower():
+            return 3
+        return 4
 
     colleges_sorted = sorted(colleges, key=rank)[:limit]
 

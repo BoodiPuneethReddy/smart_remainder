@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     smtp_from_name: str = "Smart Study Reminder AI"
     smtp_from_email: str = ""
 
+    # ── Database Seeding ────────────────────────────────────────────────────────
+    # Set to False (default) to start with completely empty database (no demo user, no demo tasks)
+    # Set to True to seed demo user and tasks for evaluation/demo purposes
+    seed_demo_data: bool = False
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

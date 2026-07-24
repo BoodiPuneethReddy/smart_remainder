@@ -13,6 +13,7 @@ from app.api.deps import get_current_user, get_ai_client_dep
 from app.core.database import get_db
 from app.models.task import Task
 from app.models.study_session import StudySession
+from app.models.notification import Notification
 from app.models.user import User
 from app.schemas.task import TaskCreate, TaskListResponse, TaskResponse, TaskUpdate
 from app.services.ai_client import AIInferenceClient
@@ -106,6 +107,7 @@ def get_task(
     return TaskResponse.model_validate(task)
 
 
+@router.put("/{task_id}", response_model=TaskResponse)
 @router.patch("/{task_id}", response_model=TaskResponse)
 def update_task(
     task_id: int,
@@ -139,6 +141,23 @@ def update_task(
     return TaskResponse.model_validate(task)
 
 
+@router.patch("/{task_id}/complete", response_model=TaskResponse)
+def complete_task_endpoint(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    ai_client: AIInferenceClient = Depends(get_ai_client_dep),
+):
+    return update_task(
+        task_id=task_id,
+        updates=TaskUpdate(is_completed=True),
+        db=db,
+        current_user=current_user,
+        ai_client=ai_client,
+    )
+
+
+
 @router.delete("/{task_id}", status_code=204)
 def delete_task(
     task_id: int,
@@ -148,5 +167,11 @@ def delete_task(
     task = db.query(Task).filter(Task.id == task_id, Task.user_id == current_user.id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Nullify dependent task_id foreign key references before deletion
+    db.query(StudySession).filter(StudySession.task_id == task_id).update({"task_id": None})
+    db.query(Notification).filter(Notification.task_id == task_id).update({"task_id": None})
+    
     db.delete(task)
     db.commit()
+

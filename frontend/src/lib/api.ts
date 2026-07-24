@@ -32,13 +32,36 @@ apiClient.interceptors.response.use(
   },
 );
 
+export function getErrorMessage(err: any): string {
+  if (!err.response) {
+    return 'Connection error. Please try again.';
+  }
+  if (err.response.status >= 500) {
+    return 'Something went wrong. Please try again.';
+  }
+  const detail = err.response.data?.detail;
+  if (typeof detail === 'string') {
+    return detail;
+  }
+  if (Array.isArray(detail) && detail.length > 0) {
+    return detail[0].msg || 'Invalid input provided.';
+  }
+  return 'An error occurred. Please try again.';
+}
+
+
 // ── Types ────────────────────────────────────────────────────────────────────
 export interface User {
   id: number;
   email: string;
   full_name: string;
   is_active: boolean;
+  college_id?: number;
   college?: string;
+  custom_college?: string;
+  department?: string;
+  year?: string;
+  preferences?: string;
   created_at: string;
 }
 
@@ -135,9 +158,12 @@ export interface WeeklyDataPoint {
 export const authApi = {
   login: (email: string, password: string) =>
     apiClient.post<{ access_token: string; user: User }>('/api/auth/login', { email, password }),
-  register: (data: { email: string; full_name: string; password: string; college_id?: number; date_of_birth?: string }) =>
+  register: (data: { email: string; full_name: string; password: string; college_id?: number; custom_college?: string; department?: string; year?: string; date_of_birth?: string }) =>
     apiClient.post<{ access_token: string; user: User }>('/api/auth/register', data),
   me: () => apiClient.get<User>('/api/auth/me'),
+  updateProfile: (data: Partial<User>) => apiClient.put<User>('/api/auth/me', data),
+  logout: () => apiClient.post<{ message: string }>('/api/auth/logout'),
+  refresh: () => apiClient.post<{ access_token: string; user: User }>('/api/auth/refresh'),
   forgotPassword: (email: string) =>
     apiClient.post<{ message: string; dev_otp?: string; expires_in_minutes: number }>('/api/auth/forgot-password', { email }),
   verifyOtp: (email: string, otp: string) =>

@@ -40,21 +40,7 @@ export default function Dashboard() {
   const { toasts, addToast, dismissToast } = useToast();
   const [showImport, setShowImport] = useState(false);
   const [showAssessment, setShowAssessment] = useState(false);
-  const [assessmentSubject, setAssessmentSubject] = useState('');
-  const [assessmentTopic, setAssessmentTopic] = useState('');
   const [assessmentDocId, setAssessmentDocId] = useState<number | undefined>(undefined);
-
-  const { data: learningProfile, isLoading: profileLoading } = useQuery({
-    queryKey: ['assessment', 'learning-profile'],
-    queryFn: () => assessmentApi.getLearningProfile().then((r) => r.data),
-    staleTime: 30_000,
-  });
-
-  const { data: mistakeJournal } = useQuery({
-    queryKey: ['assessment', 'mistake-journal'],
-    queryFn: () => assessmentApi.listMistakes().then((r) => r.data),
-    staleTime: 30_000,
-  });
 
   const { data: plan, isLoading: planLoading } = useQuery({
     queryKey: ['planner', 'daily'],
@@ -104,29 +90,6 @@ export default function Dashboard() {
     const interval = setInterval(checkReminders, 60_000);
     return () => clearInterval(interval);
   }, [checkReminders]);
-
-  const renderAsciiBar = (percentage: number) => {
-    const totalBlocks = 10;
-    const filledBlocks = Math.round((percentage / 100) * totalBlocks);
-    const emptyBlocks = totalBlocks - filledBlocks;
-    return '█'.repeat(filledBlocks) + '░'.repeat(emptyBlocks);
-  };
-
-  const getRevisionLabel = (lastRevisionStr: string, intervalDays: number) => {
-    const lastRev = new Date(lastRevisionStr);
-    const now = new Date();
-    const dueTime = lastRev.getTime() + (intervalDays * 24 * 60 * 60 * 1000);
-    const diffMs = dueTime - now.getTime();
-    const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
-    
-    if (diffDays <= 0) {
-      return { text: "Due Today", style: "text-red-400 bg-red-500/10 border border-red-500/20" };
-    }
-    if (diffDays === 1) {
-      return { text: "Tomorrow", style: "text-orange-400 bg-orange-500/10 border border-orange-500/20" };
-    }
-    return { text: `In ${diffDays} days`, style: "text-blue-400 bg-blue-500/10 border border-blue-500/20" };
-  };
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -295,247 +258,49 @@ export default function Dashboard() {
         {/* ── Learning Intelligence & Weekly Activity row ────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           
-          {/* Learning Intelligence Card */}
+          {/* AI Learning Workspace Card */}
           <div className="lg:col-span-2">
             <Card.Default>
               <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/5">
                 <div className="flex items-center gap-2">
-                  <Brain size={iconSize.button} className="text-orange-500" />
-                  <h2 className="text-h2 text-[var(--text-primary)]">Learning Agent</h2>
+                  <Brain size={iconSize.button} className="text-blue-500" />
+                  <h2 className="text-h2 text-[var(--text-primary)]">AI Study Workspace</h2>
                 </div>
-                <span className="text-caption text-[var(--text-secondary)]">Adaptive Mastery & Retention Curve</span>
+                <span className="text-caption text-[var(--text-secondary)]">Document-First Learning Engine</span>
               </div>
 
-              {profileLoading ? (
-                <Skeleton.TaskList count={3} />
-              ) : !learningProfile || learningProfile.length === 0 ? (
-                <div className="text-center py-8 text-[var(--text-secondary)] space-y-4">
-                  <p className="text-caption">No active learning topics found. Upload academic documents or Timetables to start testing.</p>
+              <div className="p-6 rounded-xl border border-white/5 bg-white/5 text-center space-y-4">
+                <div className="w-16 h-16 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mx-auto">
+                  <BookOpen size={32} />
+                </div>
+                <div>
+                  <h3 className="text-h3 text-white font-bold">Document-Guided AI Tutoring</h3>
+                  <p className="text-body-sm text-[var(--text-secondary)] mt-1 max-w-md mx-auto">
+                    Upload lecture notes, textbooks, or class PDFs to start a sequential AI study session tailored to your document.
+                  </p>
+                </div>
+                <div className="flex justify-center gap-3 pt-2">
                   <Button
-                    variant="secondary"
-                    className="mx-auto"
+                    variant="primary"
                     onClick={() => {
-                      setAssessmentSubject("Mathematics");
-                      setAssessmentTopic("Core Calculus");
                       setAssessmentDocId(undefined);
                       setShowAssessment(true);
                     }}
+                    className="flex items-center gap-2"
                   >
-                    Diagnose Initial Knowledge
+                    <Brain size={16} />
+                    <span>Open Learning Workspace</span>
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setShowImport(true)}
+                    className="flex items-center gap-2"
+                  >
+                    <Upload size={16} />
+                    <span>Upload Study PDF</span>
                   </Button>
                 </div>
-              ) : (
-                <div className="space-y-4 max-h-[320px] overflow-y-auto pr-2">
-                  {learningProfile.map((p) => {
-                    const revision = getRevisionLabel(p.last_revision, p.interval_days);
-                    return (
-                      <div
-                        key={p.id}
-                        className="p-4 rounded-xl border border-white/5 bg-white/5 space-y-4 hover:bg-white/10 transition-all"
-                      >
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                          <div className="space-y-0.5">
-                            <span className="text-[10px] font-bold text-orange-500 uppercase tracking-wider block">
-                              {p.subject}
-                            </span>
-                            <span className="text-body-sm font-semibold text-white block">
-                              {p.topic}
-                            </span>
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-6 text-[12px] font-mono">
-                            {/* Mastery visual bar */}
-                            <div className="space-y-0.5">
-                              <span className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] block">
-                                Mastery
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-orange-400 font-bold text-[11px]">
-                                  {renderAsciiBar(p.mastery)}
-                                </span>
-                                <span className="text-white font-bold">{Math.round(p.mastery)}%</span>
-                              </div>
-                            </div>
-
-                            {/* Retention curve visual bar */}
-                            <div className="space-y-0.5">
-                              <span className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] block">
-                                Retention
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-emerald-400 font-bold text-[11px]">
-                                  {renderAsciiBar(p.retention)}
-                                </span>
-                                <span className="text-white font-bold">{Math.round(p.retention)}%</span>
-                              </div>
-                            </div>
-
-                            {/* Revision Due Schedule */}
-                            <div className="space-y-0.5">
-                              <span className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] block">
-                                Revision
-                              </span>
-                              <span className={`px-2 py-0.5 rounded text-[11px] font-sans font-medium block text-center ${revision.style}`}>
-                                {revision.text}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex justify-end">
-                            <button
-                              onClick={() => {
-                                setAssessmentSubject(p.subject);
-                                setAssessmentTopic(p.topic);
-                                setShowAssessment(true);
-                              }}
-                              className="px-3.5 py-1.5 rounded-lg border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 text-caption font-semibold transition-all hover:scale-[1.02]"
-                            >
-                              Study Workspace
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Collapsible Knowledge Map Visual Tree */}
-                        <div className="pl-4 border-l-2 border-white/10 space-y-2 text-[11px] font-mono text-[var(--text-secondary)]">
-                          <div className="flex items-center justify-between text-[10px] uppercase text-white/30 font-sans tracking-wider pb-1">
-                            <span>Knowledge Map Tree Nodes (Click to Focus Tutor)</span>
-                            <span>Status</span>
-                          </div>
-                          {p.topic.toLowerCase().includes('calculus') ? (
-                            <>
-                              <div
-                                onClick={() => {
-                                  setAssessmentSubject(p.subject);
-                                  setAssessmentTopic("Limits & Continuity");
-                                  setShowAssessment(true);
-                                }}
-                                className="flex items-center justify-between text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/15 px-2 py-1 rounded cursor-pointer transition-colors"
-                              >
-                                <span>├── Limits & Continuity</span>
-                                <span className="text-[9px] font-sans font-bold">Mastered ✓</span>
-                              </div>
-                              <div
-                                onClick={() => {
-                                  setAssessmentSubject(p.subject);
-                                  setAssessmentTopic("Derivatives Fundamentals");
-                                  setShowAssessment(true);
-                                }}
-                                className="flex items-center justify-between text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/15 px-2 py-1 rounded cursor-pointer transition-colors"
-                              >
-                                <span>├── Derivatives Fundamentals</span>
-                                <span className="text-[9px] font-sans font-bold">Mastered ✓</span>
-                              </div>
-                              <div
-                                onClick={() => {
-                                  setAssessmentSubject(p.subject);
-                                  setAssessmentTopic("Integrals & Area Anomalies");
-                                  setShowAssessment(true);
-                                }}
-                                className="flex items-center justify-between text-orange-400 bg-orange-500/5 hover:bg-orange-500/15 px-2 py-1 rounded cursor-pointer transition-colors"
-                              >
-                                <span>├── Integrals & Area Anomalies</span>
-                                <span className="text-[9px] font-sans font-bold">Weak ⚠</span>
-                              </div>
-                              <div
-                                onClick={() => {
-                                  setAssessmentSubject(p.subject);
-                                  setAssessmentTopic("Differential Equations");
-                                  setShowAssessment(true);
-                                }}
-                                className="flex items-center justify-between text-red-400 bg-red-500/5 hover:bg-red-500/15 px-2 py-1 rounded cursor-pointer transition-colors"
-                              >
-                                <span>└── Differential Equations</span>
-                                <span className="text-[9px] font-sans font-bold">Very Weak ❌</span>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div
-                                onClick={() => {
-                                  setAssessmentSubject(p.subject);
-                                  setAssessmentTopic("Fundamentals & Terms");
-                                  setShowAssessment(true);
-                                }}
-                                className="flex items-center justify-between text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/15 px-2 py-1 rounded cursor-pointer transition-colors"
-                              >
-                                <span>├── Fundamentals & Terms</span>
-                                <span className="text-[9px] font-sans font-bold">Mastered ✓</span>
-                              </div>
-                              <div
-                                onClick={() => {
-                                  setAssessmentSubject(p.subject);
-                                  setAssessmentTopic("Core Structures & Relations");
-                                  setShowAssessment(true);
-                                }}
-                                className="flex items-center justify-between text-orange-400 bg-orange-500/5 hover:bg-orange-500/15 px-2 py-1 rounded cursor-pointer transition-colors"
-                              >
-                                <span>├── Core Structures & Relations</span>
-                                <span className="text-[9px] font-sans font-bold">Weak ⚠</span>
-                              </div>
-                              <div
-                                onClick={() => {
-                                  setAssessmentSubject(p.subject);
-                                  setAssessmentTopic("Advanced Production Scenarios");
-                                  setShowAssessment(true);
-                                }}
-                                className="flex items-center justify-between text-white/40 bg-white/2 hover:bg-white/5 px-2 py-1 rounded cursor-pointer transition-colors"
-                              >
-                                <span>└── Advanced Production Scenarios</span>
-                                <span className="text-[9px] font-sans">Locked</span>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Source Syllabus Coverage Tracker */}
-              <div className="mt-6 p-4 rounded-xl border border-white/5 bg-white/2 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-caption font-bold text-white uppercase tracking-wider block">Uploaded Sources Coverage</span>
-                  <span className="text-h3 text-orange-500 font-mono">82% Coverage</span>
-                </div>
-                <div className="space-y-2 text-[11px] font-mono">
-                  <div className="flex justify-between text-emerald-400 bg-emerald-500/5 p-2 rounded">
-                    <span>✓ Academic Timetable / Syllabus</span>
-                    <span>Uploaded</span>
-                  </div>
-                  <div className="flex justify-between text-emerald-400 bg-emerald-500/5 p-2 rounded">
-                    <span>✓ Reference Book Chapters (Calculus/DBMS)</span>
-                    <span>Uploaded</span>
-                  </div>
-                  <div className="flex justify-between text-red-400 bg-red-500/5 p-2 rounded">
-                    <span>✗ Homework Assignment 3 Exercises</span>
-                    <span>Missing</span>
-                  </div>
-                </div>
               </div>
-
-              {/* Mistake Journal Pane */}
-              {mistakeJournal && mistakeJournal.length > 0 && (
-                <div className="mt-6 p-4 rounded-xl border border-red-500/20 bg-red-500/5 space-y-3">
-                  <span className="text-caption font-bold text-red-400 uppercase tracking-wider block">Mistake Journal</span>
-                  <div className="space-y-3">
-                    {mistakeJournal.slice(0, 3).map((m: any) => (
-                      <div key={m.id} className="p-3 rounded-lg border border-red-500/10 bg-red-500/10 space-y-1 font-sans">
-                        <div className="flex justify-between text-caption font-bold text-red-400">
-                          <span>{m.subject} - {m.topic}</span>
-                          <span>{m.mistakes_count} Gaps</span>
-                        </div>
-                        <p className="text-[11px] text-white/70 italic leading-relaxed">
-                          "{m.question_text}"
-                        </p>
-                        <div className="text-[9px] text-white/40">
-                          Revision due: Tomorrow
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </Card.Default>
           </div>
 
@@ -588,8 +353,6 @@ export default function Dashboard() {
           <AITutorWorkspace
             isOpen={showAssessment}
             onClose={() => setShowAssessment(false)}
-            subject={assessmentSubject}
-            topic={assessmentTopic}
             documentId={assessmentDocId}
             onSuccess={() => {
               addToast({

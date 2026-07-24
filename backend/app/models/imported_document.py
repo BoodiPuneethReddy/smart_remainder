@@ -10,11 +10,15 @@ from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Tex
 from app.core.database import Base
 
 
+from sqlalchemy.orm import relationship
+
 class ImportedDocument(Base):
     __tablename__ = "imported_documents"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user = relationship("User", back_populates="imported_documents")
+
 
     # File storage (original file is always preserved)
     original_filename = Column(String(500), nullable=False)

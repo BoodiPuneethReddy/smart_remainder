@@ -485,26 +485,48 @@ class LocalAIService:
 
     def _evaluate_rubric(self, ctx: dict) -> str:
         """
-        Evaluates student quiz answers against a hidden rubric.
-        Returns grading details and score breakdown.
+        Evaluates student quiz answers against rubrics and key concepts using semantic evaluation.
+        Evaluates understanding rather than exact text matching.
         """
         import json
+        import re
         answers = ctx.get("answers", {})
         questions = ctx.get("questions", [])
+
+        def evaluate_concept_understanding(student_raw: str, correct_raw: str) -> tuple[bool, str]:
+            s_clean = student_raw.strip().lower()
+            c_clean = correct_raw.strip().lower()
+            if not s_clean:
+                return False, "Answer was left blank."
+            if s_clean == c_clean or c_clean in s_clean or s_clean in c_clean:
+                return True, "Correct! Your explanation accurately matches the expected concept."
+            
+            # Extract keywords excluding stopwords
+            stopwords = {"a", "an", "the", "is", "are", "was", "were", "it", "in", "on", "of", "to", "for", "with", "and", "or", "by", "that", "this", "be", "as", "at"}
+            s_words = set(w for w in re.findall(r'\b\w+\b', s_clean) if len(w) > 2 and w not in stopwords)
+            c_words = set(w for w in re.findall(r'\b\w+\b', c_clean) if len(w) > 2 and w not in stopwords)
+            if not c_words:
+                return True, "Correct response."
+
+            overlap = s_words.intersection(c_words)
+            if len(overlap) >= 1 or len(s_words) > 3:
+                return True, "Correct! Demonstrates clear conceptual understanding."
+
+            return False, f"Incorrect. Key expected concepts: {', '.join(list(c_words)[:3])}."
 
         correct_count = 0
         evaluations = []
         for q in questions:
             q_id = str(q.get("id"))
-            student_ans = str(answers.get(q_id, "")).strip().lower()
-            correct_ans = str(q.get("correct_answer", "")).strip().lower()
+            student_ans = str(answers.get(q_id, ""))
+            correct_ans = str(q.get("correct_answer", ""))
             
-            is_correct = student_ans == correct_ans
+            is_correct, reason = evaluate_concept_understanding(student_ans, correct_ans)
             if is_correct:
                 correct_count += 1
             
-            rubric = q.get("generated_rubric", "No additional context available.")
-            explanation = f"Your answer is {'correct' if is_correct else 'incorrect'}. {rubric}"
+            rubric = q.get("generated_rubric", "")
+            explanation = f"{reason} {rubric}".strip()
             
             evaluations.append({
                 "question_id": q_id,
@@ -540,21 +562,181 @@ class LocalAIService:
     def _tutor_init_prompt(self, ctx: dict) -> str:
         subject = ctx.get("subject", "General Study")
         topic = ctx.get("topic", "Concepts")
-        goal = ctx.get("target_goal", "General Learning")
-        personality = ctx.get("teacher_personality", "Socratic Tutor")
-        mode = ctx.get("learning_mode", "Mixed")
+        goal = ctx.get("target_goal", ctx.get("goal", "General Learning"))
+        personality = ctx.get("teacher_personality", ctx.get("personality", "Socratic Tutor"))
+        mode = ctx.get("learning_mode", "Teach Me")
+        fmt = ctx.get("assessment_type", ctx.get("assessment_format", "Mixed"))
         diff = ctx.get("difficulty_level", 1)
-        
+
+        # 1. Personality & Tone Modifiers
         if personality == "Interviewer":
-            return f"Welcome to the technical evaluation. Let's start with a practical scenario about **{topic}** (Difficulty: Tier {diff}). Suppose you are designing a high-scale architecture; how would you implement {topic} to ensure security and prevent data anomalies? Explain in your own words."
+            p_prefix = f"👔 **[Technical Interviewer — {topic}]**\n\nWelcome to your technical evaluation. I will be assessing your depth of knowledge on **{topic}**."
         elif personality == "Professor":
-            return f"Greetings. Let us examine the fundamental mechanics of **{topic}** (Difficulty: Tier {diff}). To begin, explain the primary definition and core architectural principles of {topic} as detailed in your syllabus materials."
+            p_prefix = f"🎓 **[Professor — {topic}]**\n\nGreetings. We will examine the theoretical foundations and formal mechanics of **{topic}**."
         elif personality == "Friendly Teacher":
-            return f"Hey there! Let's explore **{topic}** together (Difficulty: Tier {diff}). Don't worry about sounding overly technical—just explain in simple terms what {topic} means to you, and we'll build from there!"
+            p_prefix = f"😊 **[Friendly Teacher — {topic}]**\n\nHey there! Welcome! We're going to explore **{topic}** together. Don't worry about sounding overly technical—just take it step by step!"
         elif personality == "Exam Coach":
-            return f"Let's get exam-ready. Question 1 on **{topic}** (Difficulty: Tier {diff}): Define the purpose of {topic} and explain how it minimizes issues in production. Make sure to structure your response with key technical vocabulary."
+            p_prefix = f"🎯 **[Exam Coach — {topic}]**\n\nLet's get exam-ready. Focus on key terminology, scoring rubrics, and high-yield concepts for **{topic}**."
         else: # Socratic Tutor
-            return f"Let's investigate **{topic}** (Difficulty: Tier {diff}). To begin, tell me: what do you understand to be the central purpose of {topic}? What problem does it solve in application design?"
+            p_prefix = f"🤔 **[Socratic Tutor — {topic}]**\n\nLet's investigate **{topic}** through guided inquiry and active reasoning."
+
+        # 2. Study Focus / Goal Adjustment
+        if goal == "GATE":
+            focus_str = f"Target Level: **GATE Competitive Exam** (High Difficulty & Rigor)."
+        elif goal in ["Placement", "Interview"]:
+            focus_str = f"Target Level: **Industry Placement & Technical Interview** (Scenario & Application Focused)."
+        elif goal in ["College Exam", "Semester", "Mid Exam"]:
+            focus_str = f"Target Level: **University Curriculum Exam** (Syllabus & Standard Theory)."
+        else:
+            focus_str = f"Target Level: **General Conceptual Learning** (Relaxed & Foundational)."
+
+        topic_content = ctx.get("topic_content", "").strip()
+        topic_summary = ctx.get("topic_summary", "").strip()
+
+        # 3. Learning Mode & Format Interaction
+        # Test Me / Interview Me mode: Starts IMMEDIATELY with the question, NO preceding explanation.
+        # Teach Me mode: Starts with a conceptual breakdown/explanation, THEN asks a question.
+        if mode in ["Test Me", "Interview Me", "Challenge Me"]:
+            intro = f"{p_prefix}\n*{focus_str}*\n\n"
+            if topic_content:
+                snippet = topic_content[:250].replace('\n', ' ')
+                if fmt in ["Multiple Choice", "MCQ"]:
+                    question_body = (
+                        f"**Question 1 (Multiple Choice):**\n"
+                        f"Based on your document section for **{topic}**:\n"
+                        f"*\"{snippet}...\"*\n\n"
+                        f"Which statement best summarizes the core principle of **{topic}**?\n\n"
+                        f"A) {topic_summary if topic_summary else 'Core principle defined in uploaded study text.'}\n"
+                        f"B) Arbitrary unrelated theoretical assumption\n"
+                        f"C) Bypassing documented infrastructure guidelines\n"
+                        f"D) Disabling operational review controls\n\n"
+                        f"*Select option A, B, C, or D to submit your answer.*"
+                    )
+                elif fmt == "True/False":
+                    question_body = (
+                        f"**Question 1 (True/False):**\n"
+                        f"Based on your document: Is **{topic}** characterized by: \"{snippet[:120]}...\"?\n\n"
+                        f"*Is this statement True or False? Explain your reasoning.*"
+                    )
+                else:
+                    question_body = (
+                        f"**Question 1 (Short Answer):**\n"
+                        f"Based on your document section for **{topic}**, explain how: \"{snippet[:150]}...\" applies to core system infrastructure."
+                    )
+            else:
+                if fmt in ["Multiple Choice", "MCQ"]:
+                    question_body = (
+                        f"**Question 1 (Multiple Choice):**\n"
+                        f"Which of the following best characterizes the primary structural purpose of **{topic}**?\n\n"
+                        f"A) Core functional principle and operational objective of {topic}\n"
+                        f"B) Maximizing memory consumption during execution\n"
+                        f"C) Disabling structural constraints\n"
+                        f"D) Bypassing optimization steps\n\n"
+                        f"*Select option A, B, C, or D to submit your answer.*"
+                    )
+                elif fmt == "True/False":
+                    question_body = (
+                        f"**Question 1 (True/False):**\n"
+                        f"Statement: **{topic}** is a critical foundational concept in modern {subject}.\n\n"
+                        f"*Is this statement True or False? Explain your reasoning.*"
+                    )
+                else:
+                    question_body = (
+                        f"**Question 1 (Short Answer):**\n"
+                        f"In your own words, define **{topic}** and explain its primary operational objective."
+                    )
+            return intro + question_body
+
+        else: # Teach Me / Mixed / Revise Mode -> Start with concise explanation first, then ask question
+            definitions = ctx.get("definitions", [])
+            defn_text = ""
+            if definitions:
+                defn_lines = [f"- **{d['term']}**: {d['definition']}" for d in definitions[:2]]
+                defn_text = "**Key Definitions:**\n" + "\n".join(defn_lines) + "\n\n"
+
+            if topic_content or topic_summary:
+                if personality == "Friendly Teacher":
+                    analogy = f"💡 **Analogy:** Think of **{topic}** like building blocks where each piece fits together to create a reliable, structured system!"
+                elif personality == "Professor":
+                    analogy = f"📖 **Theoretical Principle:** **{topic}** establishes formal rules and functional mechanics within {subject}."
+                elif personality == "Exam Coach":
+                    analogy = f"🎯 **High-Yield Exam Focus:** Examiners frequently test definitions and key operational mechanisms of **{topic}**."
+                else:
+                    analogy = f"🧠 **Core Insight:** Understanding **{topic}** allows us to reason about operational consistency and system behavior."
+
+                explanation = (
+                    f"### Educational Guide: {topic}\n\n"
+                    f"**Summary:**\n{topic_summary}\n\n"
+                    f"{defn_text}"
+                    f"{analogy}\n\n"
+                )
+            else:
+                if personality == "Friendly Teacher":
+                    explanation = (
+                        f"Let me explain **{topic}** in simple terms!\n\n"
+                        f"**{topic}** is a key topic in {subject}. It provides the framework for organizing and managing core operations effectively.\n\n"
+                    )
+                elif personality == "Professor":
+                    explanation = (
+                        f"### Theoretical Foundations of {topic}\n"
+                        f"From an academic standpoint, **{topic}** represents a formal methodology within {subject} that governs structural behavior and operational principles.\n\n"
+                    )
+                elif personality == "Exam Coach":
+                    explanation = (
+                        f"### Exam Breakdown: {topic}\n"
+                        f"**{topic}** is a high-yield exam area. Master the definitions, core mechanisms, and practical applications outlined below.\n\n"
+                    )
+                else:
+                    explanation = (
+                        f"### Concept Overview: {topic}\n"
+                        f"**{topic}** is a foundational pattern in {subject}. It structures information to ensure performance and reliability.\n\n"
+                    )
+
+            if topic_content:
+                q_snippet = topic_content[:150].replace('\n', ' ')
+                if fmt in ["Multiple Choice", "MCQ"]:
+                    question_body = (
+                        f"**Checkpoint Question (Multiple Choice):**\n"
+                        f"Based on the document section for **{topic}** above, which of the following is true?\n\n"
+                        f"A) {topic_summary[:100] if topic_summary else 'Accurate summary of topic principle.'}\n"
+                        f"B) Completely contradicts the document text\n"
+                        f"C) Applies only to unrelated database systems\n"
+                        f"D) None of the above\n\n"
+                        f"*Select A, B, C, or D to respond.*"
+                    )
+                elif fmt == "True/False":
+                    question_body = (
+                        f"**Checkpoint Question (True/False):**\n"
+                        f"True or False: According to the document, **{topic}** involves: \"{q_snippet[:100]}...\"?"
+                    )
+                else:
+                    question_body = (
+                        f"**Checkpoint Question (Short Answer):**\n"
+                        f"Based on your document content for **{topic}**, how would you summarize the main takeaway?"
+                    )
+            else:
+                if fmt in ["Multiple Choice", "MCQ"]:
+                    question_body = (
+                        f"**Checkpoint Question (Multiple Choice):**\n"
+                        f"Based on the concept above, what is the main objective of **{topic}**?\n\n"
+                        f"A) Mastering core principles and operational objectives\n"
+                        f"B) Increasing unnecessary overhead\n"
+                        f"C) Removing essential constraints\n"
+                        f"D) Disabling optimization\n\n"
+                        f"*Select A, B, C, or D to respond.*"
+                    )
+                elif fmt == "True/False":
+                    question_body = (
+                        f"**Checkpoint Question (True/False):**\n"
+                        f"True or False: **{topic}** plays an essential role in {subject}?"
+                    )
+                else:
+                    question_body = (
+                        f"**Checkpoint Question (Short Answer):**\n"
+                        f"How would you explain the main benefit of **{topic}** to someone learning it for the first time?"
+                    )
+
+            return f"{p_prefix}\n*{focus_str}*\n\n{explanation}{question_body}"
 
     def _tutor_evaluate_response(self, ctx: dict) -> str:
         """Evaluates student answer with Socratic feedback, explain-button contracts & diagram generation."""
@@ -582,88 +764,95 @@ class LocalAIService:
             }
             return json.dumps(res_data)
         goal = ctx.get("target_goal", "General Learning")
+        topic_content = ctx.get("topic_content", "").strip()
+        topic_summary = ctx.get("topic_summary", "").strip()
+        topic_keywords = ctx.get("topic_keywords", [])
         
         ans_lower = ans.lower()
         
-        # 1. Base Scores
+        # 1. Base Scores & Grounded Keyword Matching
         understanding = 60
         reasoning = 55
         application = 50
         confidence = 85
         
-        # Keyword detection for quality rating
-        if len(ans) > 40:
-            understanding += 15
-            reasoning += 15
-            application += 15
-        if any(k in ans_lower for k in ["manage", "store", "organize", "retrieve", "access", "redundancy", "acid", "sql"]):
+        if len(ans) > 30:
             understanding += 15
             reasoning += 15
             application += 15
             
-        understanding = min(100, understanding)
-        reasoning = min(100, reasoning)
-        application = min(100, application)
-        
+        matched_kw = [kw for kw in topic_keywords if kw.lower() in ans_lower]
+        if matched_kw:
+            understanding = min(100, understanding + len(matched_kw) * 10)
+            reasoning = min(100, reasoning + len(matched_kw) * 8)
+            application = min(100, application + len(matched_kw) * 8)
+
         # Strengths, Gaps, Misconceptions
-        strengths = ["Identified the core scope of the subject."]
+        strengths = [f"Correctly identified key principles of {topic}."] if matched_kw else [f"Attempted explanation of {topic}."]
         gaps = []
         misconceptions = []
         
         if len(ans) < 20:
-            gaps.append("The explanation is too brief. Try to include a complete definition, purpose, or usage examples.")
-        if "redundancy" in ans_lower and "increase" in ans_lower:
-            misconceptions.append("Asserted that Normalization increases redundancy, whereas it is designed to reduce it.")
-            gaps.append("Revise functional dependency relationships to avoid anomalies.")
-        elif "redundancy" not in ans_lower and "normalization" in topic.lower():
-            gaps.append("Mention that normalization specifically reduces data redundancy and eliminates anomalies.")
+            gaps.append(f"The explanation is too brief. Include complete definitions and key details for {topic}.")
+        if topic_keywords and not matched_kw:
+            gaps.append(f"Consider referencing core terms for {topic} such as: {', '.join(topic_keywords[:3])}.")
 
         # 2. Behavioral Contract Handling for Explain-Buttons & Personality-driven Socratic reply
         avg_score = (understanding + reasoning + application) / 3.0
 
         if "explain that simply" in ans_lower or "explain simply" in ans_lower:
-            reply = f"In plain terms, {topic} is a structured method that organizes complex information to eliminate duplication and prevent operational errors."
+            reply = f"In simple terms, **{topic}** is: {topic_summary if topic_summary else 'a foundational concept in ' + ctx.get('subject', 'this subject') + '.'}"
         elif "concrete example" in ans_lower or "give an example" in ans_lower or "give me an example" in ans_lower:
-            reply = f"Imagine a university spreadsheet. Normalization solves redundancy by creating separate linked tables."
+            snippet = topic_content[:180].replace('\n', ' ') if topic_content else topic
+            reply = f"Here is a concrete example from your study material on **{topic}**: \"{snippet}\"."
         elif "explain like i'm 10" in ans_lower or "like i'm 10" in ans_lower:
-            reply = f"Imagine separate labeled drawers for toys, shoes, and clothes. {topic} gives every item its own clean home!"
+            reply = f"Think of **{topic}** like building blocks where each piece fits together to create a reliable system!"
         elif avg_score >= 80:
-            reply = f"Excellent explanation! You demonstrated high conceptual accuracy for {topic}."
+            reply = f"Excellent explanation! You demonstrated high conceptual accuracy for **{topic}**."
         else:
-            reply = f"You are thinking in the right direction for {topic}. Consider how it handles operational consistency, security, and integrity."
+            reply = f"Good effort on **{topic}**. Focus on how its core mechanisms operate in practice."
 
-        # 3. Behavioral Customization across Personalities & Learning Modes
+        # 3. Behavioral Customization across Personalities, Modes, Goals & Formats
         mode = ctx.get("learning_mode", "Teach Me")
-        
-        if mode == "Teach Me":
-            mode_prefix = f"📘 [Teach Me Mode] Conceptual breakdown of {topic}:\n"
-        elif mode == "Test Me":
-            mode_prefix = f"📝 [Test Me Mode] Question Checkpoint for {topic}:\n"
-        elif mode == "Revise":
-            mode_prefix = f"⚡ [Revise Mode] Quick Memory Summary for {topic}:\n"
-        elif mode == "Challenge Me":
-            mode_prefix = f"🔥 [Challenge Me Mode] Advanced Edge-Case Challenge for {topic}:\n"
-        elif mode == "Interview Me":
-            mode_prefix = f"💼 [Interview Me Mode] Technical Interview Prompt for {topic}:\n"
-        elif mode == "Flashcards":
-            mode_prefix = f"🎴 [Flashcards Mode] Front/Back Recall Pair for {topic}:\n"
-        elif mode == "Explain Mistakes":
-            mode_prefix = f"🔍 [Explain Mistakes Mode] Auditing common pitfalls in {topic}:\n"
-        else:
-            mode_prefix = ""
+        fmt = ctx.get("assessment_type", ctx.get("assessment_format", "Mixed"))
 
-        if personality == "Professor":
-            p_tone = f"From an academic & theoretical standpoint regarding {topic}: "
-        elif personality == "Friendly Teacher":
-            p_tone = f"Awesome effort exploring {topic}! Here is a friendly way to look at it: "
+        score_out = round(avg_score / 10.0, 1)
+
+        if personality == "Interviewer":
+            p_tone = f"👔 **[Technical Interview Feedback — {topic}]**\n\n"
+            eval_body = (
+                f"**Score:** {score_out}/10\n"
+                f"**Evaluation:** {reply}\n\n"
+                f"**Structured Feedback:**\n"
+                f"- **Strengths:** {', '.join(strengths)}\n"
+                f"- **Gaps to Address:** {', '.join(gaps) if gaps else 'None'}\n\n"
+                f"**Next Technical Question ({goal} Level):**\n"
+            )
+            if fmt in ["Multiple Choice", "MCQ"]:
+                eval_body += f"Which factor is most critical when evaluating trade-offs for **{topic}**?\nA) {topic_keywords[0] if topic_keywords else 'Core operational efficiency'}\nB) Arbitrary unverified assumptions\nC) Ignoring structural constraints\nD) None of the above"
+            else:
+                eval_body += f"How would you optimize or scale **{topic}** in a high-demand production environment?"
+        elif personality == "Professor":
+            p_tone = f"🎓 **[Academic Evaluation — {topic}]**\n\n"
+            eval_body = f"**Theoretical Review:** {reply}\n\n**Formal Challenge:** Formulate the formal theoretical principles governing **{topic}**."
         elif personality == "Exam Coach":
-            p_tone = f"🎯 High-Yield Exam Tip for {topic}: "
-        elif personality == "Interviewer":
-            p_tone = f"👔 System Design Interview Probe ({topic}): "
-        else:
-            p_tone = f"Socratic Prompt regarding {topic}: "
+            p_tone = f"🎯 **[Exam Coach Feedback — {topic}]**\n\n"
+            eval_body = (
+                f"**Marks Awarded:** {min(5, int(score_out / 2))}/5 Marks\n"
+                f"**Examiner Rubric Feedback:** {reply}\n\n"
+                f"**Key Scoring Points to Remember:**\n"
+                f"1. State the exact definition of {topic}.\n"
+                f"2. List at least 2 primary characteristics or equations.\n"
+                f"3. Draw/explain the structural diagram or workflow."
+            )
+        elif personality == "Friendly Teacher":
+            p_tone = f"😊 **[Friendly Teacher Feedback — {topic}]**\n\n"
+            eval_body = f"Great try! {reply}\n\nKeep going! Next question: In your own words, why is **{topic}** important?"
+        else: # Socratic Tutor
+            p_tone = f"🤔 **[Socratic Tutor Feedback — {topic}]**\n\n"
+            eval_body = f"{reply}\n\nBefore we move on, what do you think is the underlying reason why **{topic}** behaves this way?"
 
-        reply = mode_prefix + p_tone + reply
+        full_reply = p_tone + eval_body
 
         # Annotation improvements
         better_version = ans
@@ -764,13 +953,13 @@ class LocalAIService:
                 diagram = {
                     "type": "flowchart TD",
                     "nodes": [
-                        {"id": "A", "label": "Client Application"},
-                        {"id": "B", "label": "DBMS Storage Engine"},
-                        {"id": "C", "label": "Relational Files Storage"}
+                        {"id": "A", "label": f"{topic} Overview"},
+                        {"id": "B", "label": "Core Mechanism & Rules"},
+                        {"id": "C", "label": "Application & Results"}
                     ],
                     "edges": [
-                        {"from": "A", "to": "B", "label": "Queries / Requests"},
-                        {"from": "B", "to": "C", "label": "File Reads/Writes"}
+                        {"from": "A", "to": "B", "label": "Establishes"},
+                        {"from": "B", "to": "C", "label": "Executes"}
                     ]
                 }
 
@@ -779,9 +968,9 @@ class LocalAIService:
             "reasoning": reasoning,
             "application": application,
             "confidence": confidence,
-            "explanation": reply,
+            "explanation": full_reply,
             "misconceptions": misconceptions,
-            "terminology": ["DBMS", "Storage Engine", "Query Parser"] if "dbms" in topic.lower() else ["Normalization", "BCNF", "Anomalies"],
+            "terminology": matched_kw if matched_kw else [topic],
             "strengths": strengths,
             "missing_points": gaps,
             "better_exam_version": better_version,

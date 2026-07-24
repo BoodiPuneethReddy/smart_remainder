@@ -263,6 +263,32 @@ Smart Study Reminder AI Team — Built for ByteXL × AMD Mini Hackathon
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+from app.schemas.user import Token, UserCreate, UserLogin, UserResponse, UserUpdate
+
+router = APIRouter(prefix="/api/auth", tags=["auth"])
+settings = get_settings()
+logger = logging.getLogger(__name__)
+
+# OTP configuration
+OTP_TTL_MINUTES = 10
+OTP_MAX_ATTEMPTS = 5
+OTP_RESEND_LIMIT_MINUTES = 60
+OTP_RESEND_LIMIT_COUNT = 3
+
+
+# ── Schemas ──────────────────────────────────────────────────────────────────
+
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    full_name: str
+    password: str
+    college_id: Optional[int] = None
+    custom_college: Optional[str] = None
+    department: Optional[str] = None
+    year: Optional[str] = None
+    date_of_birth: Optional[date] = None
+
+
 @router.post("/login", response_model=Token)
 def login(credentials: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == credentials.email).first()
@@ -279,6 +305,11 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 def register(user_data: RegisterRequest, db: Session = Depends(get_db)):
+    if not user_data.full_name or not user_data.full_name.strip():
+        raise HTTPException(status_code=400, detail="Full name is required")
+    if len(user_data.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
     if db.query(User).filter(User.email == user_data.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
 
@@ -291,9 +322,12 @@ def register(user_data: RegisterRequest, db: Session = Depends(get_db)):
 
     user = User(
         email=user_data.email,
-        full_name=user_data.full_name,
+        full_name=user_data.full_name.strip(),
         hashed_password=hash_password(user_data.password),
         college_id=user_data.college_id,
+        custom_college=user_data.custom_college,
+        department=user_data.department,
+        year=user_data.year,
         date_of_birth=user_data.date_of_birth,
     )
     db.add(user)
@@ -306,6 +340,63 @@ def register(user_data: RegisterRequest, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
     return UserResponse.model_validate(current_user)
+
+
+@router.put("/me", response_model=UserResponse)
+@router.patch("/me", response_model=UserResponse)
+def update_profile(
+    updates: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if updates.email and updates.email != current_user.email:
+        existing = db.query(User).filter(User.email == updates.email).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        current_user.email = updates.email
+
+    if updates.full_name is not None:
+        if not updates.full_name.strip():
+            raise HTTPException(status_code=400, detail="Full name cannot be empty")
+        current_user.full_name = updates.full_name.strip()
+
+    if updates.college_id is not None:
+        from app.models.college import College
+        college = db.query(College).filter(College.id == updates.college_id).first()
+        if not college:
+            raise HTTPException(status_code=400, detail="Invalid college selection")
+        current_user.college_id = updates.college_id
+
+    if updates.custom_college is not None:
+        current_user.custom_college = updates.custom_college.strip()
+
+    if updates.department is not None:
+        current_user.department = updates.department.strip()
+
+    if updates.year is not None:
+        current_user.year = updates.year.strip()
+
+    if updates.preferences is not None:
+        current_user.preferences = updates.preferences
+
+    db.commit()
+    db.refresh(current_user)
+    return UserResponse.model_validate(current_user)
+
+
+@router.post("/logout")
+def logout():
+    return {"message": "Logged out successfully"}
+
+
+@router.post("/refresh", response_model=Token)
+def refresh_token(current_user: User = Depends(get_current_user)):
+    token = create_access_token(
+        data={"sub": str(current_user.id)},
+        expires_delta=timedelta(minutes=settings.access_token_expire_minutes),
+    )
+    return Token(access_token=token, user=UserResponse.model_validate(current_user))
+
 
 
 @router.post("/forgot-password")
