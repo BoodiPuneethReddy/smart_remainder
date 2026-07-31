@@ -23,6 +23,14 @@ logger = logging.getLogger(__name__)
 # Spaced repetition intervals in days
 SR_INTERVALS = [1, 3, 7, 14, 30]
 
+# Quiz score evaluation thresholds
+QUIZ_HIGH_THRESHOLD: float = 80.0
+QUIZ_LOW_THRESHOLD: float = 60.0
+
+# Memory retention score limits
+MIN_RETENTION_SCORE: float = 10.0
+MAX_RETENTION_SCORE: float = 100.0
+
 
 def calculate_retention(last_revision: datetime, interval_days: int) -> float:
     """
@@ -43,7 +51,7 @@ def calculate_retention(last_revision: datetime, interval_days: int) -> float:
     strength = float(max(1, interval_days)) * 2.0
     
     retention = math.exp(-elapsed_days / strength) * 100.0
-    return round(max(10.0, min(100.0, retention)), 1)
+    return round(max(MIN_RETENTION_SCORE, min(MAX_RETENTION_SCORE, retention)), 1)
 
 
 def schedule_revision(current_interval: int, quiz_score: float) -> int:
@@ -60,11 +68,11 @@ def schedule_revision(current_interval: int, quiz_score: float) -> int:
             if val <= current_interval:
                 idx = i
 
-    if quiz_score >= 80.0:
+    if quiz_score >= QUIZ_HIGH_THRESHOLD:
         # Increase interval
         next_idx = min(len(SR_INTERVALS) - 1, idx + 1)
         return SR_INTERVALS[next_idx]
-    elif quiz_score < 60.0:
+    elif quiz_score < QUIZ_LOW_THRESHOLD:
         # Decrease interval
         prev_idx = max(0, idx - 1)
         return SR_INTERVALS[prev_idx]

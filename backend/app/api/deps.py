@@ -3,6 +3,7 @@ api/deps.py — FastAPI shared dependencies.
 Import get_current_user from here in all protected routes.
 """
 
+import threading
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
@@ -14,15 +15,18 @@ from app.services.ai_client import AIInferenceClient, get_ai_client
 
 _bearer = HTTPBearer()
 
-# Singleton AI client — created once at import time
+# Singleton AI client with thread-safe lock
 _ai_client_instance: AIInferenceClient | None = None
+_client_lock = threading.Lock()
 
 
 def get_ai_client_dep() -> AIInferenceClient:
-    """Dependency that returns the singleton AI client."""
+    """Dependency that returns the thread-safe singleton AI client."""
     global _ai_client_instance
     if _ai_client_instance is None:
-        _ai_client_instance = get_ai_client()
+        with _client_lock:
+            if _ai_client_instance is None:
+                _ai_client_instance = get_ai_client()
     return _ai_client_instance
 
 

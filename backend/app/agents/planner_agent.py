@@ -35,6 +35,12 @@ from app.services.ai_client import AIInferenceClient
 
 logger = logging.getLogger(__name__)
 
+# Default scheduling constants
+DEFAULT_AVAILABLE_MINUTES: int = 240
+DEFAULT_PER_TASK_CAP: int = 120
+MIN_TASK_SESSION_MINUTES: int = 30
+MIN_REMAINING_BUDGET_THRESHOLD: int = 15
+
 
 def _get_sessions_for_user(user_id: int, db: Session) -> list[dict]:
     """Retrieve all study sessions as plain dicts for scoring."""
@@ -125,7 +131,7 @@ def score_all_tasks(user_id: int, db: Session, ai_client: AIInferenceClient) -> 
 def _allocate_minutes(
     tasks: list[Task],
     total_budget: int,
-    per_task_cap: int = 120,
+    per_task_cap: int = DEFAULT_PER_TASK_CAP,
 ) -> tuple[list[dict], int]:
     """
     Deterministically allocate study minutes across tasks within a time budget.
@@ -149,11 +155,11 @@ def _allocate_minutes(
         days_left = max(1, (due - now).days)
         daily_hours = min(task.estimated_hours, task.estimated_hours / days_left)
         daily_minutes = int(daily_hours * 60)
-        daily_minutes = max(30, min(daily_minutes, per_task_cap))
+        daily_minutes = max(MIN_TASK_SESSION_MINUTES, min(daily_minutes, per_task_cap))
 
         remaining_budget = total_budget - minutes_allocated
         if daily_minutes > remaining_budget:
-            if remaining_budget < 15:
+            if remaining_budget < MIN_REMAINING_BUDGET_THRESHOLD:
                 break
             daily_minutes = remaining_budget
 
@@ -195,8 +201,8 @@ def build_daily_plan(
     AI presents it in natural language via present_study_plan.
     """
     constraints = constraints or {}
-    total_budget = int(constraints.get("available_minutes", 240))
-    per_task_cap = int(constraints.get("session_cap_minutes", 120))
+    total_budget = int(constraints.get("available_minutes", DEFAULT_AVAILABLE_MINUTES))
+    per_task_cap = int(constraints.get("session_cap_minutes", DEFAULT_PER_TASK_CAP))
 
     tasks = score_all_tasks(user_id, db, ai_client)
     today = datetime.now(timezone.utc).date()

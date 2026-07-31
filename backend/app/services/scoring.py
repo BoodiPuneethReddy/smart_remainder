@@ -1,8 +1,8 @@
 """
 services/scoring.py — Deterministic priority scoring engine.
 
-Formula (spec-exact):
-  priority_score = (0.40 * urgency + 0.25 * weakness + 0.25 * importance + 0.10 * effort) * 10
+Formula (5-factor model):
+  priority_score = (0.35 * urgency + 0.20 * weakness + 0.20 * importance + 0.10 * effort + 0.15 * retention) * 10
 
 Sub-scores are all 0–10. Final priority_score is 0–100.
 
@@ -13,8 +13,16 @@ The Planner Agent orchestrates the full pipeline.
 from __future__ import annotations
 
 import math
+import random
 from datetime import datetime, timezone
 from typing import Optional
+
+# Factor weights (sum to 1.00)
+WEIGHT_URGENCY = 0.35
+WEIGHT_WEAKNESS = 0.20
+WEIGHT_IMPORTANCE = 0.20
+WEIGHT_EFFORT = 0.10
+WEIGHT_RETENTION = 0.15
 
 
 # ─── Urgency: days-remaining lookup table ──────────────────────────────────────
@@ -121,11 +129,11 @@ def compute_priority(
     retention_score = (1.0 - (retention_value / 100.0)) * 10.0
 
     contributions = {
-        "urgency": 0.35 * urgency,
-        "weakness": 0.20 * weakness,
-        "importance": 0.20 * importance,
-        "effort": 0.10 * effort,
-        "retention": 0.15 * retention_score,
+        "urgency": WEIGHT_URGENCY * urgency,
+        "weakness": WEIGHT_WEAKNESS * weakness,
+        "importance": WEIGHT_IMPORTANCE * importance,
+        "effort": WEIGHT_EFFORT * effort,
+        "retention": WEIGHT_RETENTION * retention_score,
     }
 
     priority_score = sum(contributions.values()) * 10.0
@@ -224,8 +232,6 @@ def generate_explanation_template(
     Select and fill a template explanation based on the top 2 scoring factors.
     Falls back gracefully to a generic template if no exact pair is found.
     """
-    import random
-
     pair = tuple(sorted(top_factors[:2]))
     templates = _EXPLANATION_TEMPLATES.get(pair)
 
