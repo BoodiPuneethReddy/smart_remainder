@@ -212,7 +212,7 @@ def classify(message: str) -> IntentResult:
         confidence = 0.75  # Compound message
 
     primary = matched_intents[0]
-    needs_clarification = confidence < _LOW_CONFIDENCE_THRESHOLD
+    needs_clarification = False
 
     logger.info(
         "IntentClassifier: intents=%s confidence=%.2f entities=%s",

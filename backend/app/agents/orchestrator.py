@@ -25,6 +25,7 @@ from app.agents.planner_agent import build_daily_plan
 from app.agents.reflection_agent import review_plan
 from app.agents.analytics_agent import generate_analytics_summary
 from app.agents.response_builder import build_final_response
+from app.models.imported_document import ImportedDocument
 from app.services.ai_client import AIInferenceClient
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,11 @@ def execute_swarm_workflow(
     memory = get_shared_memory()
     step_logs: list[SwarmStepLog] = []
 
+    logger.info("==========================================")
+    logger.info("Incoming Request: %r", user_query)
+    logger.info("Orchestrator Started")
+    logger.info("SharedMemory Loaded: %s", memory.get_latest_graph(user_id) is not None)
+
     # Step 1: Intent Classification
     intent_res = classify(user_query)
     primary_intent = intent_res.primary_intent.value
@@ -62,6 +68,22 @@ def execute_swarm_workflow(
         from app.agents.document_agent import process_document
         graph = process_document(document_id, db)
         memory.set_knowledge_graph(user_id, graph)
+    else:
+        graph = memory.get_latest_graph(user_id)
+        if not graph:
+            # Query latest imported document from DB if not present in memory cache
+            doc = (
+                db.query(ImportedDocument)
+                .filter(ImportedDocument.user_id == user_id)
+                .order_by(ImportedDocument.uploaded_at.desc())
+                .first()
+            )
+            if doc:
+                from app.agents.document_agent import process_document
+                graph = process_document(doc.id, db)
+                memory.set_knowledge_graph(user_id, graph)
+
+    if graph:
         step_logs.append(
             SwarmStepLog(
                 agent_name="DocumentAgent",
@@ -69,8 +91,6 @@ def execute_swarm_workflow(
                 summary=f"Parsed Knowledge Graph for '{graph.subject}' ({len(graph.concepts)} concepts).",
             )
         )
-    else:
-        graph = memory.get_latest_graph(user_id)
 
     # Step 3: Strategy Selection (StudyStrategyAgent)
     strategy = None
@@ -91,9 +111,9 @@ def execute_swarm_workflow(
         PlanItemModel(
             task_id=item.get("task_id"),
             title=item.get("title", "Study Session"),
-            subject=item.get("subject", "General"),
+            subject=item.get("subject", graph.subject if graph else "General"),
             task_type=item.get("task_type", "study"),
-            recommended_minutes=item.get("recommended_minutes", 45),
+            recommended_minutes=item.get("recommended_minutes", 35),
             priority_score=item.get("priority_score", 50.0),
             days_remaining=item.get("days_remaining", 7),
             ai_explanation=item.get("ai_explanation", ""),
@@ -101,10 +121,26 @@ def execute_swarm_workflow(
         for item in raw_plan_dict.get("items", [])
     ]
 
+    # If DB has no tasks created yet, generate dynamic task items directly from document concepts!
+    if not plan_items and graph and graph.concepts:
+        for idx, concept in enumerate(graph.concepts[:5]):
+            plan_items.append(
+                PlanItemModel(
+                    task_id=idx + 1,
+                    title=f"Study {concept.title}",
+                    subject=graph.subject,
+                    task_type="study",
+                    recommended_minutes=35,
+                    priority_score=85.0 - (idx * 5),
+                    days_remaining=6,
+                    ai_explanation=f"Foundational topic from {concept.chapter}.",
+                )
+            )
+
     structured_plan = StructuredPlanModel(
         user_id=user_id,
         available_minutes=raw_plan_dict.get("available_minutes", 240),
-        allocated_minutes=raw_plan_dict.get("total_minutes_allocated", 0),
+        allocated_minutes=sum(i.recommended_minutes for i in plan_items),
         items=plan_items,
         confidence=0.95,
         reasoning=["Prioritized using 5-factor deterministic priority scoring."],
@@ -114,7 +150,7 @@ def execute_swarm_workflow(
         SwarmStepLog(
             agent_name="PlannerAgent",
             status="completed",
-            summary=f"Generated daily study roadmap with {len(plan_items)} task allocation sessions.",
+            summary=f"Generated study roadmap with {len(plan_items)} task allocation sessions.",
         )
     )
 
@@ -152,5 +188,5 @@ def execute_swarm_workflow(
     )
 
     result.formatted_response = build_final_response(result)
-    logger.info("OrchestratorAgent: Workflow completed for user=%d intent=%s steps=%d", user_id, primary_intent, len(step_logs))
+    logger.info("Swarm execution completed for user_id=%d steps=%d", user_id, len(step_logs))
     return result
