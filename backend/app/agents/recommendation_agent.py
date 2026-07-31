@@ -157,7 +157,6 @@ def _get_task_contexts(user_id: int, db: Session) -> list[dict]:
 # ── Intent handlers ───────────────────────────────────────────────────────────
 
 def _handle_study_planning(user_id: int, session, db: Session, ai_client: AIInferenceClient) -> dict:
-    from app.agents.planner_agent import build_daily_plan
     plan = build_daily_plan(user_id, db, ai_client)
     update_session(user_id, last_intent="study_planning", last_schedule=plan, last_constraints={})
     return {
@@ -170,7 +169,6 @@ def _handle_study_planning(user_id: int, session, db: Session, ai_client: AIInfe
 
 
 def _handle_schedule_constraint(user_id: int, entities: dict, session, db: Session, ai_client: AIInferenceClient) -> dict:
-    from app.agents.planner_agent import recalculate_schedule
     constraints = {}
     if "available_minutes" in entities:
         constraints["available_minutes"] = entities["available_minutes"]

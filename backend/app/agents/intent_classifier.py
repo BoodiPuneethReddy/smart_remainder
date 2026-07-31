@@ -122,6 +122,11 @@ _RULES: list[tuple[Intent, list[str]]] = [
     ]),
 ]
 
+_COMPILED_RULES: list[tuple[Intent, list[re.Pattern]]] = [
+    (intent, [re.compile(p, re.IGNORECASE) for p in patterns])
+    for intent, patterns in _RULES
+]
+
 _LOW_CONFIDENCE_THRESHOLD = 0.35
 
 
@@ -164,7 +169,7 @@ def classify(message: str) -> IntentResult:
     """
     Classify a user message into one or more intent categories.
 
-    Rule-based first — no AI call for clearly-patterned intents.
+    Rule-based pre-compiled regex matching — zero AI calls for clearly-patterned intents.
     Returns all matched intents for compound handling.
     Same message → same classification always (deterministic).
     """
@@ -180,15 +185,12 @@ def classify(message: str) -> IntentResult:
     msg_lower = message.strip().lower()
     matched_intents: list[Intent] = []
 
-    for intent, patterns in _RULES:
-        for pattern in patterns:
-            try:
-                if re.search(pattern, msg_lower, re.IGNORECASE):
-                    if intent not in matched_intents:
-                        matched_intents.append(intent)
-                    break
-            except re.error:
-                continue
+    for intent, compiled_patterns in _COMPILED_RULES:
+        for pattern in compiled_patterns:
+            if pattern.search(msg_lower):
+                if intent not in matched_intents:
+                    matched_intents.append(intent)
+                break
 
     entities = {}
     if Intent.TASK_COMPLETION in matched_intents:
