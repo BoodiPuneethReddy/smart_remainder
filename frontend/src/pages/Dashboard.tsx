@@ -330,8 +330,6 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
-
       <ImportModal
         isOpen={showImport}
         onClose={() => setShowImport(false)}

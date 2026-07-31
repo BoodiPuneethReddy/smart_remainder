@@ -42,7 +42,7 @@ function AddTaskModal({ onClose }: { onClose: () => void }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { mutate: createTask, isPending } = useMutation({
-    mutationFn: (data: any) => tasksApi.create(data),
+    mutationFn: (data: Partial<Task>) => tasksApi.create(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
       qc.invalidateQueries({ queryKey: ['planner'] });
@@ -56,7 +56,8 @@ function AddTaskModal({ onClose }: { onClose: () => void }) {
     if (!form.title.trim()) e.title = 'Title is required';
     if (!form.subject.trim()) e.subject = 'Subject is required';
     if (!form.due_date) e.due_date = 'Due date is required';
-    if (!form.estimated_hours || isNaN(+form.estimated_hours)) e.estimated_hours = 'Enter a valid number';
+    const hours = Number(form.estimated_hours);
+    if (!form.estimated_hours || isNaN(hours) || hours <= 0) e.estimated_hours = 'Enter a valid number of hours';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -66,9 +67,9 @@ function AddTaskModal({ onClose }: { onClose: () => void }) {
     if (!validate()) return;
     createTask({
       ...form,
-      estimated_hours: +form.estimated_hours,
-      grade_weight: form.grade_weight ? +form.grade_weight : undefined,
-      exam_duration_minutes: form.exam_duration_minutes ? +form.exam_duration_minutes : undefined,
+      estimated_hours: Number(form.estimated_hours),
+      grade_weight: form.grade_weight ? Number(form.grade_weight) : undefined,
+      exam_duration_minutes: form.exam_duration_minutes ? Number(form.exam_duration_minutes) : undefined,
     });
   };
 

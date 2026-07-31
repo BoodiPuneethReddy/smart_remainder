@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AnimatePresence } from 'framer-motion';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
+import { ToastProvider } from '@/hooks/useToast';
 import { Sidebar } from '@/components/layout/Sidebar';
 
 // Pages
@@ -56,17 +57,19 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <BrowserRouter>
-          <AnimatePresence mode="wait">
-            <Routes>
-              <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-              <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-              <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
-              <Route path="/style-guide" element={<StyleGuide />} />
-              <Route path="/*" element={<ProtectedLayout />} />
-            </Routes>
-          </AnimatePresence>
-        </BrowserRouter>
+        <ToastProvider>
+          <BrowserRouter>
+            <AnimatePresence mode="wait">
+              <Routes>
+                <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+                <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+                <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
+                <Route path="/style-guide" element={<StyleGuide />} />
+                <Route path="/*" element={<ProtectedLayout />} />
+              </Routes>
+            </AnimatePresence>
+          </BrowserRouter>
+        </ToastProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

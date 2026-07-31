@@ -5,11 +5,30 @@ import requests
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.core.database import create_all_tables, SessionLocal
+from app.models.user import User
+from app.core.security import hash_password
 
 
 @pytest.fixture(scope="session", autouse=True)
 def local_backend_client():
     """Run the backend app in-process for tests that use requests against localhost."""
+    create_all_tables()
+    db = SessionLocal()
+    try:
+        demo_email = "punithgodof@gmail.com"
+        user = db.query(User).filter(User.email == demo_email).first()
+        if not user:
+            user = User(
+                email=demo_email,
+                full_name="Punith",
+                hashed_password=hash_password("Punith@123"),
+            )
+            db.add(user)
+            db.commit()
+    finally:
+        db.close()
+
     client = TestClient(app)
     original_request = requests.Session.request
 

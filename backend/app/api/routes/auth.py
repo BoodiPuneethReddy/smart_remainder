@@ -399,10 +399,18 @@ def refresh_token(current_user: User = Depends(get_current_user)):
 
 
 
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from sqlalchemy.orm import Session
+from pydantic import BaseModel, EmailStr
+
 @router.post("/forgot-password")
-def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db)):
+def forgot_password(
+    body: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
     """
-    Generate a 6-digit OTP and send to email.
+    Generate a 6-digit OTP and send to email asynchronously via background tasks.
     Never reveals whether the email exists (prevents account enumeration).
     Rate-limited: max 3 OTPs per email per hour.
     """
@@ -444,8 +452,9 @@ def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db)):
     db.add(otp_record)
     db.commit()
 
-    # Send HTML verification email
-    email_sent = _send_otp_email(email, otp, user.full_name)
+    # Send HTML verification email in background task to avoid blocking HTTP response
+    background_tasks.add_task(_send_otp_email, email, otp, user.full_name)
+    email_sent = True
 
     # Response preparation
     response = {
