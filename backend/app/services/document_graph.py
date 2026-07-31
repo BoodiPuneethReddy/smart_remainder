@@ -253,3 +253,32 @@ class DocumentGraphParser:
             "topics_count": len(topic_nodes),
             "topics": [node.to_dict() for node in topic_nodes]
         }
+
+
+def build_document_knowledge_graph(extracted_text: str, filename: str = "Document") -> dict:
+    """Convenience helper building knowledge graph dictionary for DocumentAgent."""
+    result = DocumentGraphParser.build_graph(extracted_text, filename)
+    
+    nodes = []
+    edges = []
+    raw_topics = result.get("topics", [])
+    for idx, t in enumerate(raw_topics):
+        nodes.append({
+            "title": t.get("title", f"Topic {idx+1}"),
+            "chapter": f"Chapter {idx+1}",
+            "summary": t.get("summary", ""),
+            "difficulty": t.get("difficulty", 1),
+            "prerequisites": t.get("prerequisites", []),
+            "has_code": any(k in (t.get("summary", "")).lower() for k in ["code", "function", "class", "def", "int", "return"]),
+            "has_formulas": any(k in (t.get("summary", "")).lower() for k in ["formula", "equation", "sum", "math"]),
+        })
+        if idx > 0:
+            edges.append({"from": f"c{idx}", "to": f"c{idx+1}"})
+
+    return {
+        "subject": result.get("subject", "General Academic Study"),
+        "doc_type": "Academic Notes",
+        "nodes": nodes,
+        "edges": edges,
+        "features": ["concepts", "notes", "prerequisites"]
+    }
