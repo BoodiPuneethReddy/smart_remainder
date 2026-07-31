@@ -271,19 +271,55 @@ export default function AITutorWorkspace({
       <div className="bg-[var(--bg-secondary,#1E293B)] border border-[var(--card-border,#334155)] rounded-2xl w-full max-w-4xl h-[88vh] flex flex-col shadow-2xl overflow-hidden text-[var(--text-primary,#F8FAFC)]">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#334155)] bg-slate-900/80">
+        <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-900/50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+            <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
               <Brain size={22} />
             </div>
             <div>
-              <h2 className="text-lg font-bold">AI Study Workspace</h2>
-              <p className="text-xs text-slate-400">Document-First Dedicated AI Tutor</p>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <span>AI Study Operating System</span>
+                <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/30 text-blue-400">
+                  Collaborative Swarm v2.0
+                </span>
+              </h2>
+              <p className="text-xs text-slate-400">Multi-agent orchestrator • Adaptive learning workspace</p>
             </div>
           </div>
-          <button onClick={handleEndSession} className="p-2 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
+          <button
+            onClick={onClose}
+            className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+          >
             <X size={20} />
           </button>
+        </div>
+
+        {/* Multi-Agent Swarm Status Banner */}
+        <div className="bg-slate-950/90 border-b border-slate-800 px-6 py-2 flex items-center justify-between text-xs overflow-x-auto">
+          <div className="flex items-center space-x-3">
+            <span className="text-slate-400 font-semibold flex items-center gap-1">
+              <Brain size={13} className="text-blue-400 animate-pulse" />
+              Active Swarm:
+            </span>
+            <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20 font-mono">
+              ✓ DocumentAgent
+            </span>
+            <span className="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 font-mono">
+              ✓ StrategyAgent
+            </span>
+            <span className="bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded border border-purple-500/20 font-mono">
+              ✓ PlannerAgent
+            </span>
+            <span className="bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded border border-amber-500/20 font-mono">
+              ✓ ReflectionAgent
+            </span>
+            <span className="bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/20 font-mono">
+              ✓ AnalyticsAgent
+            </span>
+            <span className="bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20 font-mono">
+              ✓ TutorAgent
+            </span>
+          </div>
         </div>
 
         {/* Master Flow Body */}

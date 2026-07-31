@@ -493,10 +493,18 @@ def answer_query(
             ai_task_used = r["ai_task_used"]
             continue
 
+    # Execute Orchestrator Agent Swarm workflow for full collaborative agent execution
+    try:
+        from app.agents.orchestrator import execute_swarm_workflow
+        swarm_result = execute_swarm_workflow(user_id, question, db, ai_client)
+        if swarm_result and swarm_result.formatted_response:
+            answer = swarm_result.formatted_response
+    except Exception as exc:
+        logger.warning("RecommendationAgent: Swarm execution fallback: %s", exc)
+
     # ── Step 3: Build final answer ────────────────────────────────────────────
-    answer = "\n\n".join(p for p in response_parts if p)
     if not answer:
-        answer = _canned_response(Intent.UNKNOWN)
+        answer = "\n\n".join(p for p in response_parts if p) or _canned_response(Intent.UNKNOWN)
 
     update_session(user_id, last_intent=primary.value)
 
