@@ -3,11 +3,12 @@ agents/orchestrator.py — Orchestrator Agent (Brain of the System).
 
 Decomposes user goals, selects domain agents, coordinates swarm execution,
 stores state in SharedMemoryStore, invokes ReflectionAgent validation,
-and returns a SwarmExecutionResult.
+and returns a SwarmExecutionResult with explainable reasoning.
 """
 
 from __future__ import annotations
 
+import re
 import logging
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
@@ -31,6 +32,28 @@ from app.services.ai_client import AIInferenceClient
 logger = logging.getLogger(__name__)
 
 
+def _extract_user_time_limit(user_query: str) -> Optional[int]:
+    """Extracts explicit user time constraints from query (e.g., '90 minutes', '1 hour', '45 mins')."""
+    q_lower = user_query.lower()
+
+    # Direct minute matches
+    m = re.search(r'(\d+)\s*(?:min|minute|mins|minutes)', q_lower)
+    if m:
+        return int(m.group(1))
+
+    # Hour matches
+    h = re.search(r'(\d+)\s*(?:hour|hours|hr|hrs)', q_lower)
+    if h:
+        return int(h.group(1)) * 60
+
+    if "an hour" in q_lower or "one hour" in q_lower:
+        return 60
+    if "half an hour" in q_lower or "30 mins" in q_lower:
+        return 30
+
+    return None
+
+
 def execute_swarm_workflow(
     user_id: int,
     user_query: str,
@@ -51,14 +74,17 @@ def execute_swarm_workflow(
     logger.info("Orchestrator Started")
     logger.info("SharedMemory Loaded: %s", memory.get_latest_graph(user_id) is not None)
 
-    # Step 1: Intent Classification
+    # Step 1: Intent Classification & Time Constraint Extraction
     intent_res = classify(user_query)
     primary_intent = intent_res.primary_intent.value
+
+    user_time_limit = _extract_user_time_limit(user_query) or intent_res.entities.get("available_minutes")
+
     step_logs.append(
         SwarmStepLog(
             agent_name="OrchestratorAgent",
             status="completed",
-            summary=f"Detected intent '{primary_intent}' with confidence {intent_res.confidence:.2f}.",
+            summary=f"Detected intent '{primary_intent}'" + (f" with {user_time_limit}m time constraint." if user_time_limit else "."),
         )
     )
 
@@ -71,7 +97,6 @@ def execute_swarm_workflow(
     else:
         graph = memory.get_latest_graph(user_id)
         if not graph:
-            # Query latest imported document from DB if not present in memory cache
             doc = (
                 db.query(ImportedDocument)
                 .filter(ImportedDocument.user_id == user_id)
@@ -121,7 +146,7 @@ def execute_swarm_workflow(
         for item in raw_plan_dict.get("items", [])
     ]
 
-    # If DB has no tasks created yet, generate dynamic task items directly from document concepts!
+    # Generate dynamic task items directly from document concepts if DB tasks are missing
     if not plan_items and graph and graph.concepts:
         for idx, concept in enumerate(graph.concepts[:5]):
             plan_items.append(
@@ -130,27 +155,46 @@ def execute_swarm_workflow(
                     title=f"Study {concept.title}",
                     subject=graph.subject,
                     task_type="study",
-                    recommended_minutes=35,
-                    priority_score=85.0 - (idx * 5),
-                    days_remaining=6,
-                    ai_explanation=f"Foundational topic from {concept.chapter}.",
+                    recommended_minutes=45 if user_time_limit and user_time_limit >= 90 else 35,
+                    priority_score=88.0 - (idx * 6),
+                    days_remaining=4,
+                    ai_explanation=f"Foundational topic from {concept.chapter} with high exam weight.",
                 )
             )
 
+    # Adjust study session durations if user provided an explicit time constraint!
+    target_avail_mins = user_time_limit if user_time_limit else raw_plan_dict.get("available_minutes", 240)
+    if user_time_limit and plan_items:
+        allocated = 0
+        fitted_items = []
+        per_item_mins = min(45, max(20, user_time_limit // len(plan_items[:3])))
+        for item in plan_items:
+            if allocated + per_item_mins <= user_time_limit:
+                item.recommended_minutes = per_item_mins
+                allocated += per_item_mins
+                fitted_items.append(item)
+            elif user_time_limit - allocated >= 15:
+                item.recommended_minutes = user_time_limit - allocated
+                allocated += item.recommended_minutes
+                fitted_items.append(item)
+                break
+
+        plan_items = fitted_items or plan_items[:1]
+
     structured_plan = StructuredPlanModel(
         user_id=user_id,
-        available_minutes=raw_plan_dict.get("available_minutes", 240),
+        available_minutes=target_avail_mins,
         allocated_minutes=sum(i.recommended_minutes for i in plan_items),
         items=plan_items,
         confidence=0.95,
-        reasoning=["Prioritized using 5-factor deterministic priority scoring."],
+        reasoning=["Prioritized using 5-factor deterministic priority scoring (Urgency, Weight, Import, Ebbinghaus, Recency)."],
     )
     memory.set_schedule(user_id, structured_plan)
     step_logs.append(
         SwarmStepLog(
             agent_name="PlannerAgent",
             status="completed",
-            summary=f"Generated study roadmap with {len(plan_items)} task allocation sessions.",
+            summary=f"Generated study roadmap with {len(plan_items)} task allocation sessions fitting {target_avail_mins}m window.",
         )
     )
 
