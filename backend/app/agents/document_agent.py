@@ -48,7 +48,7 @@ def process_document(
         )
 
     # Use document_graph service to extract graph dict
-    graph_dict = build_document_knowledge_graph(doc.extracted_text, doc.filename or "Document")
+    graph_dict = build_document_knowledge_graph(doc.extracted_text, doc.original_filename or "Document")
     
     concepts = []
     edges = []

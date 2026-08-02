@@ -18,10 +18,13 @@ OTP in development mode:
 import random
 import string
 import logging
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from datetime import datetime, timedelta, timezone, date
-from typing import Optional
+from typing import Optional, Union
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Body
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 
@@ -31,7 +34,7 @@ from app.core.database import get_db
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.user import User
 from app.models.otp_code import OTPCode
-from app.schemas.user import Token, UserCreate, UserLogin, UserResponse
+from app.schemas.user import Token, UserCreate, UserLogin, UserResponse, UserUpdate
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 settings = get_settings()
@@ -51,6 +54,9 @@ class RegisterRequest(BaseModel):
     full_name: str
     password: str
     college_id: Optional[int] = None
+    custom_college: Optional[str] = None
+    department: Optional[str] = None
+    year: Optional[str] = None
     date_of_birth: Optional[date] = None
 
 
@@ -71,162 +77,54 @@ class ResetPasswordRequest(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _generate_otp() -> str:
+    """Generates a random 6-digit numeric string."""
     return "".join(random.choices(string.digits, k=6))
 
 
-def _send_otp_email(email: str, otp: str, full_name: str) -> bool:
+def _send_otp_email(email: str, otp: str, full_name: str, settings=None) -> bool:
     """
-    Send a beautifully formatted HTML email containing the reset OTP to the registered email.
-    Falls back to a plain-text template for compatible mail clients.
-
+    Sends a formatted HTML email containing the OTP code.
     Returns True if sent successfully, False otherwise.
     """
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
-    import smtplib
+    if settings is None:
+        settings = get_settings()
 
     if settings.dev_mode:
         logger.info("DEV MODE — Generated OTP for %s: %s", email, otp)
 
     if not settings.smtp_host or not settings.smtp_username:
-        logger.warning("SMTP not configured — falling back. (host: %r, user: %r)",
-                       settings.smtp_host, settings.smtp_username)
+        logger.warning("SMTP not configured — falling back. (host: %r)", settings.smtp_host)
         return False
 
     sender_email = settings.smtp_from_email or settings.smtp_username
     sender_name = settings.smtp_from_name or "Smart Study Reminder AI"
 
-    # Plain text version
-    text_content = f"""Smart Study Reminder AI
-
-Hi {full_name},
-
-We received a request to reset your password for your Smart Study Reminder AI account.
-
+    # Plain text version for fallback
+    text_content = f"""Hi {full_name},
 Your 6-digit verification code is:
-
 [ {otp} ]
-
-This code is single-use and will expire in {OTP_TTL_MINUTES} minutes. For security, never share this code with anyone.
-
-If you didn't request this change, you can safely ignore this email — your account remains secure.
-
-Smart Study Reminder AI Team — Built for ByteXL × AMD Mini Hackathon
+This code is single-use and will expire in {OTP_TTL_MINUTES} minutes. For security, never share this code.
 """
 
-    # High quality professional HTML version
+    # HTML Version
     html_content = f"""<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reset Your Password</title>
   <style>
-    body {{
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: #0b0e14;
-      color: #f5f7fa;
-      margin: 0;
-      padding: 0;
-      -webkit-font-smoothing: antialiased;
-    }}
-    .email-container {{
-      max-width: 560px;
-      margin: 40px auto;
-      background-color: #0f1219;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-    }}
-    .header {{
-      background: linear-gradient(135deg, #ff6b35 0%, #ffc857 100%);
-      padding: 32px 24px;
-      text-align: center;
-    }}
-    .header h1 {{
-      margin: 0;
-      color: #ffffff;
-      font-size: 24px;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-    }}
-    .content {{
-      padding: 40px 32px;
-    }}
-    .greeting {{
-      font-size: 18px;
-      font-weight: 600;
-      color: #f5f7fa;
-      margin-top: 0;
-      margin-bottom: 16px;
-    }}
-    .body-text {{
-      font-size: 14px;
-      line-height: 1.6;
-      color: #98a2b3;
-      margin-bottom: 32px;
-    }}
-    .otp-container {{
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px dashed rgba(255, 255, 255, 0.15);
-      border-radius: 8px;
-      padding: 24px;
-      text-align: center;
-      margin-bottom: 32px;
-    }}
-    .otp-code {{
-      font-family: "Courier New", Courier, monospace;
-      font-size: 36px;
-      font-weight: 700;
-      letter-spacing: 6px;
-      color: #ff6b35;
-      margin: 0;
-    }}
-    .security-note {{
-      font-size: 12px;
-      line-height: 1.5;
-      color: #ffc857;
-      background: rgba(255, 200, 87, 0.08);
-      border: 1px solid rgba(255, 200, 87, 0.15);
-      padding: 12px 16px;
-      border-radius: 6px;
-      margin-bottom: 24px;
-    }}
-    .footer {{
-      padding: 24px 32px;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
-      background-color: rgba(255, 255, 255, 0.01);
-      text-align: center;
-      font-size: 11px;
-      color: #98a2b3;
-      opacity: 0.8;
-    }}
+    body {{ font-family: Arial, sans-serif; background-color: #0b0e14; color: #f5f7fa; padding: 20px; }}
+    .container {{ max-width: 500px; margin: 0 auto; background: #0f1219; border-radius: 12px; padding: 30px; border: 1px solid #1f293d; }}
+    .otp-code {{ font-size: 36px; font-weight: bold; letter-spacing: 6px; color: #ff6b35; text-align: center; margin: 20px 0; }}
+    .footer {{ font-size: 12px; color: #98a2b3; text-align: center; margin-top: 20px; }}
   </style>
 </head>
 <body>
-  <div class="email-container">
-    <div class="header">
-      <h1>Smart Study Reminder AI</h1>
-    </div>
-    <div class="content">
-      <p class="greeting">Hi {full_name},</p>
-      <p class="body-text">
-        We received a request to reset your password for your Smart Study Reminder AI account. Please use the following 6-digit verification code to complete your reset:
-      </p>
-      <div class="otp-container">
-        <p class="otp-code">{otp}</p>
-      </div>
-      <div class="security-note">
-        <strong>Important Security Notice:</strong> This code is single-use, valid for exactly 10 minutes, and must never be shared with anyone.
-      </div>
-      <p class="body-text" style="margin-bottom: 0;">
-        If you didn't request this change, you can safely ignore this email — your account remains secure.
-      </p>
-    </div>
-    <div class="footer">
-      Smart Study Reminder AI Team — Built for ByteXL &times; AMD Mini Hackathon
-    </div>
+  <div class="container">
+    <h2>Reset Your Password</h2>
+    <p>Hi {full_name},</p>
+    <p>Please use the following 6-digit verification code to complete your reset:</p>
+    <div class="otp-code">{otp}</div>
+    <p style="font-size: 12px; color: #ffc857;"><strong>Notice:</strong> This code is valid for 10 minutes and can only be used once.</p>
+    <div class="footer">Smart Study Reminder AI</div>
   </div>
 </body>
 </html>
@@ -257,37 +155,11 @@ Smart Study Reminder AI Team — Built for ByteXL × AMD Mini Hackathon
         finally:
             server.quit()
     except Exception as exc:
-        logger.error("SMTP delivery failed to %s: %s", email, exc, exc_info=True)
+        logger.error("SMTP delivery failed to %s: %s", email, exc)
         return False
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
-
-from app.schemas.user import Token, UserCreate, UserLogin, UserResponse, UserUpdate
-
-router = APIRouter(prefix="/api/auth", tags=["auth"])
-settings = get_settings()
-logger = logging.getLogger(__name__)
-
-# OTP configuration
-OTP_TTL_MINUTES = 10
-OTP_MAX_ATTEMPTS = 5
-OTP_RESEND_LIMIT_MINUTES = 60
-OTP_RESEND_LIMIT_COUNT = 3
-
-
-# ── Schemas ──────────────────────────────────────────────────────────────────
-
-class RegisterRequest(BaseModel):
-    email: EmailStr
-    full_name: str
-    password: str
-    college_id: Optional[int] = None
-    custom_college: Optional[str] = None
-    department: Optional[str] = None
-    year: Optional[str] = None
-    date_of_birth: Optional[date] = None
-
 
 @router.post("/login", response_model=Token)
 def login(credentials: UserLogin, db: Session = Depends(get_db)):
@@ -398,11 +270,6 @@ def refresh_token(current_user: User = Depends(get_current_user)):
     return Token(access_token=token, user=UserResponse.model_validate(current_user))
 
 
-
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
-
 @router.post("/forgot-password")
 def forgot_password(
     body: ForgotPasswordRequest,
@@ -410,17 +277,16 @@ def forgot_password(
     db: Session = Depends(get_db)
 ):
     """
-    Generate a 6-digit OTP and send to email asynchronously via background tasks.
-    Never reveals whether the email exists (prevents account enumeration).
+    Generate a 6-digit OTP and send to email via SMTP.
     Rate-limited: max 3 OTPs per email per hour.
     """
-    email = body.email.lower().strip()
+    target_email = body.email.lower().strip()
 
     # Rate limit: max 3 OTPs per hour
     one_hour_ago = datetime.now(timezone.utc) - timedelta(minutes=OTP_RESEND_LIMIT_MINUTES)
     recent_count = (
         db.query(OTPCode)
-        .filter(OTPCode.email == email, OTPCode.created_at >= one_hour_ago)
+        .filter(OTPCode.email == target_email, OTPCode.created_at >= one_hour_ago)
         .count()
     )
     if recent_count >= OTP_RESEND_LIMIT_COUNT:
@@ -430,62 +296,56 @@ def forgot_password(
         )
 
     # Check if user exists
-    user = db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(User.email == target_email).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No account found with this email. Please create an account first.",
+            detail="No account found with this email.",
         )
 
     # User exists: generate and save OTP
     otp = _generate_otp()
     
     # Invalidate old OTPs for this email
-    db.query(OTPCode).filter(OTPCode.email == email, OTPCode.used == False).update({"used": True})
+    db.query(OTPCode).filter(OTPCode.email == target_email, OTPCode.used == False).update({"used": True})
 
-    # Save to database
+    # Save hashed OTP to database
     otp_record = OTPCode(
-        email=email,
+        email=target_email,
         code_hash=hash_password(otp),
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=OTP_TTL_MINUTES),
     )
     db.add(otp_record)
     db.commit()
 
-    # Send HTML verification email in background task to avoid blocking HTTP response
-    background_tasks.add_task(_send_otp_email, email, otp, user.full_name)
-    email_sent = True
+    # Send HTML verification email via SMTP
+    background_tasks.add_task(_send_otp_email, target_email, otp, user.full_name, settings)
 
-    # Response preparation
-    response = {
-        "message": f"Code sent to {email} · expires in 10 minutes",
+    res = {
+        "message": f"Code sent to {target_email} · expires in 10 minutes",
         "expires_in_minutes": OTP_TTL_MINUTES,
-        "email_sent": email_sent,
+        "email_sent": True,
     }
 
-    # If email succeeded: NEVER return dev_otp, even in dev mode!
-    if email_sent:
-        return response
-
-    # If email failed:
     if settings.dev_mode:
-        response["dev_otp"] = otp
-        logger.info("Dev Mode Fallback: SMTP failed or disabled. Displaying Dev OTP: %s", otp)
-        return response
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Unable to send verification email. Please try again in a moment.",
-        )
+        res["dev_otp"] = otp
+        logger.info("Dev Mode Fallback: SMTP configured or queued. Displaying Dev OTP: %s", otp)
+
+    return res
 
 
 @router.post("/verify-otp")
-def verify_otp(body: VerifyOTPRequest, db: Session = Depends(get_db)):
+def verify_otp(
+    body: VerifyOTPRequest,
+    db: Session = Depends(get_db)
+):
     """Verify OTP and return a short-lived reset token."""
-    email = body.email.lower().strip()
+    target_email = body.email.lower().strip()
+    target_otp = body.otp.strip()
+
     otp_record = (
         db.query(OTPCode)
-        .filter(OTPCode.email == email, OTPCode.used == False)
+        .filter(OTPCode.email == target_email, OTPCode.used == False)
         .order_by(OTPCode.created_at.desc())
         .first()
     )
@@ -496,7 +356,7 @@ def verify_otp(body: VerifyOTPRequest, db: Session = Depends(get_db)):
     if otp_record.attempts >= OTP_MAX_ATTEMPTS:
         raise HTTPException(status_code=400, detail="Too many failed attempts. Request a new OTP.")
 
-    if not verify_password(body.otp, otp_record.code_hash):
+    if not verify_password(target_otp, otp_record.code_hash):
         otp_record.attempts += 1
         db.commit()
         remaining = OTP_MAX_ATTEMPTS - otp_record.attempts
@@ -507,7 +367,7 @@ def verify_otp(body: VerifyOTPRequest, db: Session = Depends(get_db)):
     db.commit()
 
     reset_token = create_access_token(
-        data={"sub": email, "purpose": "reset_password"},
+        data={"sub": target_email, "purpose": "reset_password"},
         expires_delta=timedelta(minutes=15),
     )
     return {"reset_token": reset_token}
