@@ -22,7 +22,6 @@ Document
 """
 
 import re
-import math
 import logging
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field, asdict
@@ -30,19 +29,67 @@ from dataclasses import dataclass, field, asdict
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class DefinitionBlock:
-    term: str
-    definition: str
+# ─── Subject keyword maps for automatic doc_type detection ────────────────────
+
+_SUBJECT_SIGNALS: List[tuple[str, str, List[str]]] = [
+    # (doc_type, display_name, keyword_list)
+    ("DBMS",   "Database Management Systems",   ["sql", "normalization", "relational", "entity", "er diagram", "primary key", "foreign key", "join", "transaction", "acid", "database", "schema", "tuple", "attribute", "query", "triggers", "views", "indexing", "bcnf", "3nf", "2nf", "cursor"]),
+    ("DSA",    "Data Structures & Algorithms",  ["recursion", "algorithm", "linked list", "binary tree", "graph", "heap", "sorting", "searching", "array", "stack", "queue", "dynamic programming", "time complexity", "space complexity", "big o", "traversal", "bfs", "dfs", "dijkstra"]),
+    ("OS",     "Operating Systems",             ["process", "thread", "deadlock", "memory", "paging", "segmentation", "scheduling", "semaphore", "mutex", "critical section", "context switch", "virtual memory", "kernel", "system call", "interrupt", "disk scheduling", "cpu scheduling"]),
+    ("MATH",   "Mathematics",                   ["matrix", "integral", "derivative", "theorem", "proof", "vector", "eigenvalue", "differential equation", "polynomial", "limit", "fourier", "laplace", "probability", "statistics", "calculus"]),
+    ("NETWORK","Computer Networks",             ["protocol", "tcp", "udp", "ip", "routing", "subnet", "dns", "http", "osi model", "bandwidth", "latency", "arp", "mac address", "socket", "packet", "frame"]),
+    ("SE",     "Software Engineering",          ["agile", "scrum", "design pattern", "uml", "requirement", "use case", "sdlc", "testing", "deployment", "microservice", "api", "rest", "solid principle"]),
+    ("ML",     "Machine Learning / AI",         ["neural network", "gradient descent", "overfitting", "classification", "regression", "clustering", "epoch", "loss function", "training", "feature", "backpropagation", "model", "dataset"]),
+]
+
+_FEATURE_SIGNALS: Dict[str, List[str]] = {
+    "sql":      ["select", "insert", "update", "delete", "join", "where", "group by", "having", "create table"],
+    "code":     ["def ", "class ", "function", "int ", "return ", "for i", "while ", "import ", "algorithm"],
+    "formulas": ["formula", "equation", "sum of", "integral", "derivative", "sigma", "∑", "∫", "dx", "=", "theorem"],
+    "diagrams": ["figure", "diagram", "chart", "table", "graph shows", "illustrated"],
+}
 
 
-@dataclass
-class QuestionItem:
-    question_id: str
-    question_text: str
-    options: List[str]
-    correct_answer: str
-    explanation: str
+def _detect_subject_and_features(text: str, filename: str) -> tuple[str, str, List[str]]:
+    """
+    Scan document text to detect subject domain and content features.
+    Returns (doc_type, display_subject, features_list).
+    """
+    text_lower = text.lower()
+    filename_lower = filename.lower()
+
+    best_doc_type = None
+    best_display = None
+    best_count = 0
+
+    for doc_type, display, keywords in _SUBJECT_SIGNALS:
+        count = sum(1 for kw in keywords if kw in text_lower or kw in filename_lower)
+        if count > best_count:
+            best_count = count
+            best_doc_type = doc_type
+            best_display = display
+
+    # Fallback: derive from filename
+    if not best_doc_type or best_count < 2:
+        clean_fn = re.sub(r'[\-_]', ' ', filename).replace('.pdf', '').replace('.txt', '').strip()
+        clean_fn = re.sub(r'^(?:unit|chapter|section|part|doc|module|lab|lecture)[\s0-9\-_]*', '', clean_fn, flags=re.IGNORECASE).strip()
+        best_display = clean_fn.title() if len(clean_fn) > 3 and not clean_fn.isdigit() else "General Academic Study"
+        best_doc_type = "ACADEMIC"
+
+    # Detect content features
+    features = []
+    for feature_name, signals in _FEATURE_SIGNALS.items():
+        if any(sig in text_lower for sig in signals):
+            features.append(feature_name)
+
+    if not features:
+        features = ["concepts", "notes"]
+
+    # Always add prerequisites as a universal feature
+    if "prerequisites" not in features:
+        features.append("prerequisites")
+
+    return best_doc_type, best_display, features
 
 
 @dataclass
@@ -67,20 +114,15 @@ class TopicNode:
 
 
 class SemanticTitleCleaner:
-    """
-    Normalizes headings and extracts clean semantic titles.
-    Eliminates sentence fragments, pronouns, bullets, and trailing text.
-    """
+    """Normalizes headings and extracts clean semantic titles."""
 
     @staticmethod
     def clean(line: str) -> str:
         if not line:
             return ""
-        # 1. Remove leading bullets, numbers, and unit tags
         cleaned = re.sub(r'^[\uf0b7\u2022\-\*\#\s]+', '', line)
         cleaned = re.sub(r'^(?:unit[-\s]*[ivxlcdm0-9]+|chapter\s+\d+|section\s+\d+|part\s+\d+|[a-z0-9][\.\)]+)\s*', '', cleaned, flags=re.IGNORECASE).strip()
-        
-        # 2. Extract leading title phrase if line contains trailing sentence body
+
         if '.' in cleaned and not cleaned.endswith('.'):
             parts = cleaned.split('.')
             first_part = parts[0].strip()
@@ -90,7 +132,6 @@ class SemanticTitleCleaner:
         cleaned = cleaned.rstrip(':').rstrip('.').strip()
         cleaned = re.sub(r'\s+', ' ', cleaned)
 
-        # 3. Suppress noise lines, single-word pronouns, and sentence fragments
         lower = cleaned.lower()
         fragment_starters = [
             'unit.', 'according to', 'the following', 'each level has', 'and software applications',
@@ -109,7 +150,7 @@ class SemanticTitleCleaner:
 class DocumentGraphParser:
     """
     Parses extracted text into a structured Semantic Knowledge Graph.
-    Divides text strictly by semantic section headings rather than token count.
+    Divides text strictly by semantic section headings.
     """
 
     @staticmethod
@@ -118,12 +159,16 @@ class DocumentGraphParser:
             return {
                 "document_title": filename,
                 "subject": "General Study",
+                "doc_type": "ACADEMIC",
+                "features": ["concepts", "notes", "prerequisites"],
                 "topics": []
             }
 
+        # Detect subject and features from full text BEFORE sectioning
+        doc_type, display_subject, features = _detect_subject_and_features(text, filename)
+
         lines = [line.strip() for line in text.splitlines() if line.strip()]
-        
-        # Identify section boundaries
+
         sections: List[Dict[str, Any]] = []
         current_title = "Introduction & Foundations"
         current_paragraphs: List[str] = []
@@ -135,7 +180,7 @@ class DocumentGraphParser:
             is_heading = (
                 (line.isupper() and len(line_clean) > 3 and len(line_clean) < 65)
                 or line.endswith(":")
-                or any(line_lower.startswith(p) for p in ["a)", "b)", "c)", "d)", "e)", "f)", "a).", "b).", "c).", "d).", "1.", "2.", "3.", "4.", "5."])
+                or any(line_lower.startswith(p) for p in ["a)", "b)", "c)", "d)", "e)", "f)", "1.", "2.", "3.", "4.", "5."])
                 or any(kw in line_lower for kw in ["introduction", "overview", "definitions", "principles", "theory", "types of", "classification", "mechanism", "structure", "functions", "evolution of", "drivers of", "components", "trends", "challenges", "role of", "applications"])
             )
 
@@ -158,7 +203,6 @@ class DocumentGraphParser:
                 "paragraphs": current_paragraphs[:]
             })
 
-        # Filter out empty sections
         valid_sections = [s for s in sections if s["paragraphs"] or len(sections) == 1]
         if not valid_sections:
             valid_sections = [{
@@ -167,7 +211,6 @@ class DocumentGraphParser:
                 "paragraphs": lines
             }]
 
-        # Build Topic Nodes
         topic_nodes: List[TopicNode] = []
         total_sections = len(valid_sections)
 
@@ -177,7 +220,6 @@ class DocumentGraphParser:
             paras = sec["paragraphs"]
             full_text = "\n".join(paras).strip()
 
-            # Extract Definitions & Examples
             definitions = []
             examples = []
             for p in paras:
@@ -190,21 +232,20 @@ class DocumentGraphParser:
                 if any(k in p.lower() for k in ["for example", "for instance", "e.g.", "such as"]):
                     examples.append(p[:250])
 
-            # Extract Keywords
             words = [w for w in re.findall(r'\b[A-Za-z]{4,}\b', full_text) if w.lower() not in ['this', 'that', 'with', 'from', 'have', 'were', 'their', 'which', 'other', 'also', 'such', 'into']]
             keywords = list(dict.fromkeys(words))[:6] or [title]
 
-            # Generate Summary
             summary = (full_text[:220] + "...") if len(full_text) > 220 else (full_text or f"Key concepts and principles for {title}.")
 
-            # Learning Objectives
             objectives = [
                 f"Master fundamental concepts of {title}.",
                 f"Explain structural mechanics and operational principles of {title}.",
                 f"Apply {title} principles to practical domain scenarios."
             ]
 
-            # Generate Topic-Specific Question Bank
+            # Difficulty scales with section index (later sections = harder)
+            difficulty = min(6, 1 + (idx * 6 // max(total_sections, 1)))
+
             question_bank = []
             if paras:
                 q_text = paras[0][:140].replace('\n', ' ')
@@ -230,7 +271,7 @@ class DocumentGraphParser:
                 summary=summary,
                 learning_objectives=objectives,
                 keywords=keywords,
-                difficulty=3,
+                difficulty=difficulty,
                 est_minutes=max(10, len(full_text.split()) // 20) if full_text else 15,
                 supporting_paragraphs=paras,
                 definitions=definitions,
@@ -242,14 +283,11 @@ class DocumentGraphParser:
             )
             topic_nodes.append(node)
 
-        # Detect Subject
-        clean_fn = re.sub(r'[\-_]', ' ', filename).replace('.pdf', '').replace('.txt', '').strip()
-        clean_fn_sub = re.sub(r'^(?:unit|chapter|section|part|doc|module|lab|lecture)[\s0-9\-_]*', '', clean_fn, flags=re.IGNORECASE).strip()
-        subject = clean_fn_sub.title() if len(clean_fn_sub) > 3 and not clean_fn_sub.isdigit() else "General Academic Study"
-
         return {
             "document_title": filename,
-            "subject": subject,
+            "subject": display_subject,
+            "doc_type": doc_type,
+            "features": features,
             "topics_count": len(topic_nodes),
             "topics": [node.to_dict() for node in topic_nodes]
         }
@@ -258,27 +296,32 @@ class DocumentGraphParser:
 def build_document_knowledge_graph(extracted_text: str, filename: str = "Document") -> dict:
     """Convenience helper building knowledge graph dictionary for DocumentAgent."""
     result = DocumentGraphParser.build_graph(extracted_text, filename)
-    
+
     nodes = []
     edges = []
     raw_topics = result.get("topics", [])
     for idx, t in enumerate(raw_topics):
+        summary_lower = (t.get("summary", "")).lower()
         nodes.append({
             "title": t.get("title", f"Topic {idx+1}"),
             "chapter": f"Chapter {idx+1}",
             "summary": t.get("summary", ""),
             "difficulty": t.get("difficulty", 1),
             "prerequisites": t.get("prerequisites", []),
-            "has_code": any(k in (t.get("summary", "")).lower() for k in ["code", "function", "class", "def", "int", "return"]),
-            "has_formulas": any(k in (t.get("summary", "")).lower() for k in ["formula", "equation", "sum", "math"]),
+            "keywords": t.get("keywords", []),
+            "definitions": t.get("definitions", []),
+            "examples": t.get("examples", []),
+            "est_minutes": t.get("est_minutes", 15),
+            "has_code": any(k in summary_lower for k in ["code", "function", "class", "def", "int", "return", "algorithm", "recursion"]),
+            "has_formulas": any(k in summary_lower for k in ["formula", "equation", "sum", "math", "integral", "derivative"]),
         })
         if idx > 0:
             edges.append({"from": f"c{idx}", "to": f"c{idx+1}"})
 
     return {
         "subject": result.get("subject", "General Academic Study"),
-        "doc_type": "Academic Notes",
+        "doc_type": result.get("doc_type", "ACADEMIC"),
         "nodes": nodes,
         "edges": edges,
-        "features": ["concepts", "notes", "prerequisites"]
+        "features": result.get("features", ["concepts", "notes", "prerequisites"])
     }

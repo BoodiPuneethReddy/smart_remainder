@@ -1,13 +1,13 @@
 /**
  * pages/AIPlanner.tsx — AI Planner page.
  * Left: daily study plan with time allocation.
- * Right: AI chat Q&A assistant.
+ * Right: AI chat Q&A assistant with Agent Pipeline Trace.
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Brain, MessageSquare, Clock, Lightbulb, Sparkles, Paperclip } from 'lucide-react';
-import { plannerApi, chatApi } from '@/lib/api';
+import { plannerApi, chatApi, StepLog } from '@/lib/api';
 import {
   Card, Button, Input, Skeleton, iconSize,
 } from '@/components/ui';
@@ -18,30 +18,56 @@ import { getPriorityColor } from '@/lib/design-tokens';
 import { format } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
 import ImportModal from '@/components/ui/ImportModal';
+import AgentPipelineTrace from '@/components/ui/AgentPipelineTrace';
 
 // ── Chat message bubble ────────────────────────────────────────────────────────
-function ChatBubble({ role, text, time }: { role: 'user' | 'ai'; text: string; time?: string }) {
+function ChatBubble({
+  role, text, time, stepLogs, intent
+}: {
+  role: 'user' | 'ai';
+  text: string;
+  time?: string;
+  stepLogs?: StepLog[];
+  intent?: string;
+}) {
   return (
     <motion.div
       variants={springIn}
       initial="initial"
       animate="animate"
-      className={`flex ${role === 'user' ? 'justify-end' : 'justify-start'}`}
+      className={`flex flex-col ${role === 'user' ? 'items-end' : 'items-start'}`}
     >
-      <div className={`max-w-[80%] rounded-card px-4 py-3 ${
+      <div className={`max-w-[85%] rounded-card px-4 py-3 ${
         role === 'user'
           ? 'bg-[var(--info)] text-white ml-8'
-          : 'glass text-[var(--text-primary)] mr-8'
+          : 'glass text-[var(--text-primary)] mr-4'
       }`}>
         {role === 'ai' && (
           <div className="flex items-center gap-1.5 mb-1.5">
             <Sparkles size={12} style={{ color: 'var(--priority-medium)' }} />
-            <span className="text-caption font-medium" style={{ color: 'var(--priority-medium)' }}>AI Coach</span>
+            <span className="text-caption font-medium" style={{ color: 'var(--priority-medium)' }}>AI Study OS</span>
+            {intent && (
+              <span style={{
+                fontSize: '0.60rem',
+                padding: '1px 5px',
+                borderRadius: '4px',
+                background: 'rgba(99,102,241,0.15)',
+                color: 'rgba(99,102,241,0.9)',
+                fontWeight: 600,
+              }}>
+                {intent.replace(/_/g, ' ')}
+              </span>
+            )}
           </div>
         )}
         <p className="text-body-sm leading-relaxed whitespace-pre-wrap">{text}</p>
         {time && <p className="text-[11px] opacity-50 mt-1">{time}</p>}
       </div>
+      {role === 'ai' && stepLogs && stepLogs.length > 0 && (
+        <div className="mr-4 w-full max-w-[85%]">
+          <AgentPipelineTrace stepLogs={stepLogs} intent={intent} />
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -57,7 +83,13 @@ const SUGGESTIONS = [
 export default function AIPlanner() {
   const qc = useQueryClient();
   const [question, setQuestion] = useState('');
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'ai'; text: string; time: string }>>([]);
+  const [messages, setMessages] = useState<Array<{
+    role: 'user' | 'ai';
+    text: string;
+    time: string;
+    stepLogs?: StepLog[];
+    intent?: string;
+  }>>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
   const [chatFile, setChatFile] = useState<File | null>(null);
@@ -90,7 +122,13 @@ export default function AIPlanner() {
     mutationFn: (q: string) => chatApi.ask(q).then((r) => r.data),
     onSuccess: (data) => {
       const time = format(new Date(), 'h:mm a');
-      setMessages((prev) => [...prev, { role: 'ai', text: data.answer, time }]);
+      setMessages((prev) => [...prev, {
+        role: 'ai',
+        text: data.answer,
+        time,
+        stepLogs: data.step_logs,
+        intent: data.primary_intent,
+      }]);
     },
   });
 
@@ -222,7 +260,14 @@ export default function AIPlanner() {
               </div>
             )}
             {messages.map((m, i) => (
-              <ChatBubble key={i} role={m.role} text={m.text} time={m.time} />
+              <ChatBubble
+                key={i}
+                role={m.role}
+                text={m.text}
+                time={m.time}
+                stepLogs={m.stepLogs}
+                intent={m.intent}
+              />
             ))}
             {asking && (
               <motion.div variants={springIn} initial="initial" animate="animate" className="flex justify-start">

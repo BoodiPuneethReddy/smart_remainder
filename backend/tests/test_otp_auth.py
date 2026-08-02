@@ -38,6 +38,10 @@ def test_otp_forgot_verify_and_reset_flow():
         db.add(user)
         db.commit()
 
+    # Clear existing OTP codes for test email to prevent 429 Rate Limit in test runs
+    db.query(OTPCode).filter(OTPCode.email == email).delete()
+    db.commit()
+
     # Step 1: Request Forgot Password
     res = client.post("/api/auth/forgot-password", json={"email": email})
     assert res.status_code == 200

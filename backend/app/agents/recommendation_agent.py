@@ -1,14 +1,15 @@
 """
 agents/recommendation_agent.py — Pure Compatibility Facade for Orchestrator Agent.
 
-All orchestration logic, decision making, and workflow coordination have been removed.
-This facade immediately delegates 100% of user queries to the OrchestratorAgent swarm.
+Delegates 100% of execution to OrchestratorAgent swarm.
+Returns answer + step_logs for full pipeline transparency.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Optional, Tuple, List
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.models.recommendation import Recommendation
@@ -25,14 +26,13 @@ def answer_query(
     db: Session,
     ai_client: AIInferenceClient,
     document_id: Optional[int] = None,
-) -> Recommendation:
+) -> Tuple[Recommendation, List[dict], str]:
     """
-    Facade entry point — immediately delegates execution to OrchestratorAgent.
-    No legacy conditional routing, no canned fallbacks, no manual chatbot rules.
+    Facade entry point — delegates 100% to OrchestratorAgent swarm.
+    Returns: (Recommendation record, step_logs as dicts, primary_intent)
     """
-    logger.info("RecommendationAgent Facade: delegating user=%d query to OrchestratorAgent", user_id)
+    logger.info("RecommendationAgent: user=%d query=%r", user_id, question)
 
-    # Delegate 100% of execution to OrchestratorAgent swarm
     swarm_result = execute_swarm_workflow(
         user_id=user_id,
         user_query=question,
@@ -46,12 +46,27 @@ def answer_query(
     update_session(user_id, last_intent=swarm_result.primary_intent)
 
     # Persist Q&A
-    rec = Recommendation(user_id=user_id, question=question, answer=answer)
+    rec = Recommendation(
+        user_id=user_id,
+        question=question,
+        answer=answer,
+    )
     db.add(rec)
     db.commit()
     db.refresh(rec)
 
-    return rec
+    # Convert step_logs to plain dicts for serialization
+    step_logs_dicts = [
+        {
+            "agent_name": log.agent_name,
+            "status": log.status,
+            "summary": log.summary,
+            "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+        }
+        for log in swarm_result.step_logs
+    ]
+
+    return rec, step_logs_dicts, swarm_result.primary_intent
 
 
 def get_chat_history(user_id: int, db: Session, limit: int = 20) -> list[Recommendation]:

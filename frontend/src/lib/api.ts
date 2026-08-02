@@ -121,10 +121,19 @@ export interface Notification {
   created_at: string;
 }
 
+export interface StepLog {
+  agent_name: string;
+  status: 'completed' | 'warning' | 'pending' | 'running';
+  summary: string;
+  timestamp?: string;
+}
+
 export interface ChatMessage {
   question: string;
   answer: string;
   created_at: string;
+  primary_intent?: string;
+  step_logs?: StepLog[];
 }
 
 export interface AnalyticsSummary {
@@ -261,17 +270,11 @@ export const plannerApi = {
 
 // ── Chat API ────────────────────────────────────────────────────────────────
 export const chatApi = {
-  ask: (question: string, file?: File) => {
-    if (file) {
-      const form = new FormData();
-      form.append('question', question);
-      form.append('file', file);
-      return apiClient.post<ChatMessage & { source_agent?: string; ai_task_used?: string; intent_detected?: string[] }>('/api/chat', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-    }
-    return apiClient.post<ChatMessage & { source_agent?: string; ai_task_used?: string; intent_detected?: string[] }>('/api/chat', { question });
-  },
+  ask: (question: string, documentId?: number) =>
+    apiClient.post<ChatMessage>('/api/chat', {
+      question,
+      ...(documentId !== undefined ? { document_id: documentId } : {}),
+    }, { timeout: 30000 }),
   history: () => apiClient.get<ChatMessage[]>('/api/chat/history'),
 };
 

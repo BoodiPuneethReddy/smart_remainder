@@ -1,15 +1,15 @@
-"""api/routes/chat.py — Recommendation Agent chat endpoint."""
+"""api/routes/chat.py — Orchestrator-powered chat endpoint with full pipeline transparency."""
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from typing import List
 
 from app.api.deps import get_current_user, get_ai_client_dep
 from app.core.database import get_db
 from app.models.user import User
 from app.agents import recommendation_agent
 from app.services.ai_client import AIInferenceClient
-from app.schemas.recommendation import ChatRequest, ChatResponse, RecommendationResponse
-from typing import List
+from app.schemas.recommendation import ChatRequest, ChatResponse, RecommendationResponse, StepLogSchema
 from datetime import timezone
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -22,12 +22,23 @@ def ask_question(
     current_user: User = Depends(get_current_user),
     ai_client: AIInferenceClient = Depends(get_ai_client_dep),
 ):
-    """Submit a study question and receive an AI-generated, data-grounded answer."""
-    rec = recommendation_agent.answer_query(current_user.id, request.question, db, ai_client)
+    """
+    Submit a study question and receive a full context-aware response.
+    Returns: answer, primary_intent, and agent step_logs for pipeline visualization.
+    """
+    rec, step_logs, primary_intent = recommendation_agent.answer_query(
+        user_id=current_user.id,
+        question=request.question,
+        db=db,
+        ai_client=ai_client,
+        document_id=request.document_id,
+    )
     return ChatResponse(
         answer=rec.answer,
         question=rec.question,
         created_at=rec.created_at,
+        primary_intent=primary_intent,
+        step_logs=[StepLogSchema(**log) for log in step_logs],
     )
 
 
