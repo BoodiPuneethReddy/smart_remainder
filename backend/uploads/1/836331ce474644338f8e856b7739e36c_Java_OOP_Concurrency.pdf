@@ -1,6 +1,0 @@
-Java Enterprise Programming Notes
-Topic: Object-Oriented Programming (OOP) & Concurrency
-1. Four Pillars of OOP: Encapsulation, Abstraction, Inheritance, Polymorphism.
-2. JVM Architecture: ClassLoader -> Heap, Method Area, Stack, PC Register -> Execution Engine (JIT Compiler, GC).
-3. Concurrency: Synchronized blocks, ReentrantLock, and ThreadPoolExecutor manage thread safety and prevent race conditions.
-4. Java Garbage Collection: G1 Garbage Collector divides heap into regions, managing Young and Old generations efficiently.

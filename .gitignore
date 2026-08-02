@@ -48,3 +48,10 @@ logs/
 # Coverage
 .coverage
 htmlcov/
+
+# Runtime uploads
+backend/uploads/
+
+# Frontend build output
+frontend/dist_test/
+
