@@ -458,22 +458,27 @@ def execute_swarm_workflow(
 
     # ── Branch 3: Tutor / Explanation Dynamic Graph ───────────────────────
     if "TutorAgent" in exec_graph.active_agents and "PlannerAgent" not in exec_graph.active_agents:
+        from app.agents.retrieval_agent import retrieve_top_k_nodes
+
+        graph = _find_best_matching_graph(user_id, subject_hint, db, memory)
+        top_k_nodes = retrieve_top_k_nodes(user_query, graph, top_k=3) if graph else []
+
         step_logs.append(SwarmStepLog(
             agent_name="RetrievalAgent",
             status="completed",
-            summary=f"Semantic search query: '{subject_hint or 'General'}'",
+            summary=f"Retrieved Top-{len(top_k_nodes)} concept nodes for query '{user_query}'",
         ))
-        graph = _find_best_matching_graph(user_id, subject_hint, db, memory)
+
         if graph:
             step_logs.append(SwarmStepLog(
                 agent_name="DocumentAgent",
                 status="completed",
-                summary=f"Retrieved '{graph.subject}' knowledge graph ({len(graph.concepts)} concepts)",
+                summary=f"Traversed '{graph.subject}' knowledge graph ({len(graph.concepts)} total concepts)",
             ))
         step_logs.append(SwarmStepLog(
             agent_name="TutorAgent",
             status="completed",
-            summary=f"Grounded Socratic explanation for '{subject_hint or 'General'}'",
+            summary=f"Grounded Socratic explanation using {len(top_k_nodes)} retrieved nodes",
         ))
         result = SwarmExecutionResult(
             user_id=user_id,
@@ -489,6 +494,15 @@ def execute_swarm_workflow(
             "subject": subject_hint or (graph.subject if graph else "General"),
             "learning_ctx": learning_ctx,
             "history": minimal_ctx.pruned_history,
+            "retrieved_nodes": [
+                {
+                    "id": n.id,
+                    "title": n.title,
+                    "summary": n.summary,
+                    "formulas": n.formulas,
+                    "code_snippets": n.code_snippets
+                } for n in top_k_nodes
+            ] if top_k_nodes else [],
             "knowledge_graph": {
                 "subject": graph.subject,
                 "concepts": [{"title": c.title, "summary": c.summary, "chapter": c.chapter} for c in graph.concepts[:5]]

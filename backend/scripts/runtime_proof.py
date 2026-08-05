@@ -92,12 +92,17 @@ def main():
         for skipped in skipped_agents:
             print(f"  • {skipped.agent_name} [SKIPPED] -> Reason: {skipped.skip_reason}", flush=True)
 
-        # 5. Shared Memory Evolution & Context Minimization
-        print("\n5. CONTEXTMINIMIZATION (ContextAgent Output):", flush=True)
-        history_preview = f"Pruned to {len(step_logs)} turns max context."
-        print(f"  • Intent: {intent}", flush=True)
-        print(f"  • History Context: {history_preview}", flush=True)
-        print(f"  • Knowledge Graph Nodes Attached: {'Yes' if result.knowledge_graph else 'None (Pruned)'}", flush=True)
+        # 5. Shared Memory & Top-K Concept Nodes (RetrievalAgent Output)
+        print("\n5. TOP-K RETRIEVED CONCEPT NODES (RetrievalAgent Output):", flush=True)
+        from app.agents.retrieval_agent import retrieve_top_k_nodes
+        top_k_nodes = retrieve_top_k_nodes(prompt_text, result.knowledge_graph, top_k=3) if result.knowledge_graph else []
+        print(f"  • Top-K Concept Nodes Retrieved: {len(top_k_nodes)}", flush=True)
+        for node in top_k_nodes:
+            print(f"    - [{node.id}] {node.title}: {node.summary[:80]}...", flush=True)
+            if node.formulas:
+                print(f"      Formulas: {node.formulas}", flush=True)
+            if node.code_snippets:
+                print(f"      Code Snippets: {len(node.code_snippets)} snippet(s)", flush=True)
 
         # 6. Raw Gemini Prompt & Response
         built_prompt = build_chat_recommendation_prompt({

@@ -41,10 +41,8 @@ Total Agents Skipped: 8
   • AnalyticsAgent [SKIPPED] -> Reason: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
   • TutorAgent [SKIPPED] -> Reason: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
 
-5. CONTEXTMINIMIZATION (ContextAgent Output):
-  • Intent: greeting
-  • History Context: Pruned to 10 turns max context.
-  • Knowledge Graph Nodes Attached: None (Pruned)
+5. TOP-K RETRIEVED CONCEPT NODES (RetrievalAgent Output):
+  • Top-K Concept Nodes Retrieved: 0
 
 6. RAW GEMINI SYSTEM PROMPT (Sample Construction):
 --------------------------------------------------------------------------------
@@ -72,7 +70,7 @@ What would you like to accomplish today? Ask me to explain a concept, build a cu
 --------------------------------------------------------------------------------
 
 8. EXECUTION TIMINGS & LATENCY:
-  • Total Workflow Execution Latency: 11549.85 ms
+  • Total Workflow Execution Latency: 13122.45 ms
   • Active Agents Executed: 2
 
 9. EXACT FINAL API JSON RETURNED TO FRONTEND:
@@ -116,9 +114,9 @@ User
 Total Active Agents Executed: 5
   • IntentAgent -> Status: completed | Summary: Classified intent: 'tutor' | Subject: DBMS | Reads: []
   • ContextAgent -> Status: completed | Summary: Pruned conversation history to 1 turns for intent 'tutor' | Reads: ['conversation_history', 'last_subject']
-  • RetrievalAgent -> Status: completed | Summary: Semantic search query: 'DBMS' | Reads: ['active_knowledge_graph']
-  • DocumentAgent -> Status: completed | Summary: Retrieved 'Edge Case Academic Schedule Test' knowledge graph (1 concepts) | Reads: ['last_imported_document_id']
-  • TutorAgent -> Status: completed | Summary: Grounded Socratic explanation for 'DBMS' | Reads: ['retrieved_nodes', 'pruned_history']
+  • RetrievalAgent -> Status: completed | Summary: Retrieved Top-1 concept nodes for query 'Explain normalization' | Reads: ['active_knowledge_graph']
+  • DocumentAgent -> Status: completed | Summary: Traversed 'Edge Case Academic Schedule Test' knowledge graph (1 total concepts) | Reads: ['last_imported_document_id']
+  • TutorAgent -> Status: completed | Summary: Grounded Socratic explanation using 1 retrieved nodes | Reads: ['retrieved_nodes', 'pruned_history']
 
 4. SKIPPED AGENTS & EVALUATED RATIONALE:
 Total Agents Skipped: 5
@@ -128,10 +126,10 @@ Total Agents Skipped: 5
   • ReminderAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
   • AnalyticsAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
 
-5. CONTEXTMINIMIZATION (ContextAgent Output):
-  • Intent: tutor
-  • History Context: Pruned to 10 turns max context.
-  • Knowledge Graph Nodes Attached: Yes
+5. TOP-K RETRIEVED CONCEPT NODES (RetrievalAgent Output):
+  • Top-K Concept Nodes Retrieved: 1
+    - [c1] Introduction & Foundations: Edge Case Academic Schedule Test
+Synthetic schedule designed to confuse parsers ...
 
 6. RAW GEMINI SYSTEM PROMPT (Sample Construction):
 --------------------------------------------------------------------------------
@@ -160,7 +158,7 @@ DBMS Case StudynOld deadline: 25 Aug 202...
 --------------------------------------------------------------------------------
 
 8. EXECUTION TIMINGS & LATENCY:
-  • Total Workflow Execution Latency: 13864.30 ms
+  • Total Workflow Execution Latency: 16591.28 ms
   • Active Agents Executed: 5
 
 9. EXACT FINAL API JSON RETURNED TO FRONTEND:
@@ -207,9 +205,9 @@ User
 Total Active Agents Executed: 5
   • IntentAgent -> Status: completed | Summary: Classified intent: 'tutor' | Reads: []
   • ContextAgent -> Status: completed | Summary: Pruned conversation history to 2 turns for intent 'tutor' | Reads: ['conversation_history', 'last_subject']
-  • RetrievalAgent -> Status: completed | Summary: Semantic search query: 'General' | Reads: ['active_knowledge_graph']
-  • DocumentAgent -> Status: completed | Summary: Retrieved 'Edge Case Academic Schedule Test' knowledge graph (1 concepts) | Reads: ['last_imported_document_id']
-  • TutorAgent -> Status: completed | Summary: Grounded Socratic explanation for 'General' | Reads: ['retrieved_nodes', 'pruned_history']
+  • RetrievalAgent -> Status: completed | Summary: Retrieved Top-1 concept nodes for query 'Why?' | Reads: ['active_knowledge_graph']
+  • DocumentAgent -> Status: completed | Summary: Traversed 'Edge Case Academic Schedule Test' knowledge graph (1 total concepts) | Reads: ['last_imported_document_id']
+  • TutorAgent -> Status: completed | Summary: Grounded Socratic explanation using 1 retrieved nodes | Reads: ['retrieved_nodes', 'pruned_history']
 
 4. SKIPPED AGENTS & EVALUATED RATIONALE:
 Total Agents Skipped: 5
@@ -219,10 +217,10 @@ Total Agents Skipped: 5
   • ReminderAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
   • AnalyticsAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
 
-5. CONTEXTMINIMIZATION (ContextAgent Output):
-  • Intent: tutor
-  • History Context: Pruned to 10 turns max context.
-  • Knowledge Graph Nodes Attached: Yes
+5. TOP-K RETRIEVED CONCEPT NODES (RetrievalAgent Output):
+  • Top-K Concept Nodes Retrieved: 1
+    - [c1] Introduction & Foundations: Edge Case Academic Schedule Test
+Synthetic schedule designed to confuse parsers ...
 
 6. RAW GEMINI SYSTEM PROMPT (Sample Construction):
 --------------------------------------------------------------------------------
@@ -251,7 +249,7 @@ DBMS Case StudynOld deadline: 25 Aug 202...
 --------------------------------------------------------------------------------
 
 8. EXECUTION TIMINGS & LATENCY:
-  • Total Workflow Execution Latency: 17905.08 ms
+  • Total Workflow Execution Latency: 17113.38 ms
   • Active Agents Executed: 5
 
 9. EXACT FINAL API JSON RETURNED TO FRONTEND:
@@ -298,9 +296,9 @@ User
 Total Active Agents Executed: 5
   • IntentAgent -> Status: completed | Summary: Classified intent: 'tutor' | Reads: []
   • ContextAgent -> Status: completed | Summary: Pruned conversation history to 3 turns for intent 'tutor' | Reads: ['conversation_history', 'last_subject']
-  • RetrievalAgent -> Status: completed | Summary: Semantic search query: 'General' | Reads: ['active_knowledge_graph']
-  • DocumentAgent -> Status: completed | Summary: Retrieved 'Edge Case Academic Schedule Test' knowledge graph (1 concepts) | Reads: ['last_imported_document_id']
-  • TutorAgent -> Status: completed | Summary: Grounded Socratic explanation for 'General' | Reads: ['retrieved_nodes', 'pruned_history']
+  • RetrievalAgent -> Status: completed | Summary: Retrieved Top-1 concept nodes for query 'Give another example' | Reads: ['active_knowledge_graph']
+  • DocumentAgent -> Status: completed | Summary: Traversed 'Edge Case Academic Schedule Test' knowledge graph (1 total concepts) | Reads: ['last_imported_document_id']
+  • TutorAgent -> Status: completed | Summary: Grounded Socratic explanation using 1 retrieved nodes | Reads: ['retrieved_nodes', 'pruned_history']
 
 4. SKIPPED AGENTS & EVALUATED RATIONALE:
 Total Agents Skipped: 5
@@ -310,10 +308,10 @@ Total Agents Skipped: 5
   • ReminderAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
   • AnalyticsAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
 
-5. CONTEXTMINIMIZATION (ContextAgent Output):
-  • Intent: tutor
-  • History Context: Pruned to 10 turns max context.
-  • Knowledge Graph Nodes Attached: Yes
+5. TOP-K RETRIEVED CONCEPT NODES (RetrievalAgent Output):
+  • Top-K Concept Nodes Retrieved: 1
+    - [c1] Introduction & Foundations: Edge Case Academic Schedule Test
+Synthetic schedule designed to confuse parsers ...
 
 6. RAW GEMINI SYSTEM PROMPT (Sample Construction):
 --------------------------------------------------------------------------------
@@ -342,7 +340,7 @@ DBMS Case StudynOld deadline: 25 Aug 202...
 --------------------------------------------------------------------------------
 
 8. EXECUTION TIMINGS & LATENCY:
-  • Total Workflow Execution Latency: 14532.36 ms
+  • Total Workflow Execution Latency: 13039.16 ms
   • Active Agents Executed: 5
 
 9. EXACT FINAL API JSON RETURNED TO FRONTEND:
@@ -409,9 +407,9 @@ User
 Total Active Agents Executed: 5
   • IntentAgent -> Status: completed | Summary: Classified intent: 'tutor' | Reads: []
   • ContextAgent -> Status: completed | Summary: Pruned conversation history to 3 turns for intent 'tutor' | Reads: ['conversation_history', 'last_subject']
-  • RetrievalAgent -> Status: completed | Summary: Semantic search query: 'General' | Reads: ['active_knowledge_graph']
-  • DocumentAgent -> Status: completed | Summary: Retrieved 'Edge Case Academic Schedule Test' knowledge graph (1 concepts) | Reads: ['last_imported_document_id']
-  • TutorAgent -> Status: completed | Summary: Grounded Socratic explanation for 'General' | Reads: ['retrieved_nodes', 'pruned_history']
+  • RetrievalAgent -> Status: completed | Summary: Retrieved Top-1 concept nodes for query 'Quiz me' | Reads: ['active_knowledge_graph']
+  • DocumentAgent -> Status: completed | Summary: Traversed 'Edge Case Academic Schedule Test' knowledge graph (1 total concepts) | Reads: ['last_imported_document_id']
+  • TutorAgent -> Status: completed | Summary: Grounded Socratic explanation using 1 retrieved nodes | Reads: ['retrieved_nodes', 'pruned_history']
 
 4. SKIPPED AGENTS & EVALUATED RATIONALE:
 Total Agents Skipped: 5
@@ -421,10 +419,10 @@ Total Agents Skipped: 5
   • ReminderAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
   • AnalyticsAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
 
-5. CONTEXTMINIMIZATION (ContextAgent Output):
-  • Intent: tutor
-  • History Context: Pruned to 10 turns max context.
-  • Knowledge Graph Nodes Attached: Yes
+5. TOP-K RETRIEVED CONCEPT NODES (RetrievalAgent Output):
+  • Top-K Concept Nodes Retrieved: 1
+    - [c1] Introduction & Foundations: Edge Case Academic Schedule Test
+Synthetic schedule designed to confuse parsers ...
 
 6. RAW GEMINI SYSTEM PROMPT (Sample Construction):
 --------------------------------------------------------------------------------
@@ -453,7 +451,7 @@ DBMS Case StudynOld deadline: 25 Aug 202...
 --------------------------------------------------------------------------------
 
 8. EXECUTION TIMINGS & LATENCY:
-  • Total Workflow Execution Latency: 15387.45 ms
+  • Total Workflow Execution Latency: 18894.07 ms
   • Active Agents Executed: 5
 
 9. EXACT FINAL API JSON RETURNED TO FRONTEND:
