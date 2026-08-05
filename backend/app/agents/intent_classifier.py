@@ -1,19 +1,19 @@
 """
-agents/intent_classifier.py — Intent Classifier
+agents/intent_classifier.py — Multi-Turn Intent & Entity Classifier
 
-Classifies user messages into one of 14 intent categories.
-Rule-based regex matching is used first — no AI call for greetings, casual talk, etc.
-Only falls back to heuristics for ambiguous messages.
+Classifies user messages into intent categories and extracts structured entities
+including relative date shifts (tomorrow, next week), time constraints (minutes/hours),
+subject keywords, and follow-up flags.
 
-Golden Rule: EVERY message goes through this classifier before ANY agent or AI call.
-This is enforced by the entry point in recommendation_agent.py.
+Golden Rule: No query ever returns 'needs_clarification=True' to trigger canned greetings.
+Ambiguous follow-ups inherit session context from session_state.
 """
 
 import re
 import logging
 from enum import Enum
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -39,17 +39,16 @@ class Intent(str, Enum):
 
 @dataclass
 class IntentResult:
-    intents: list[Intent]          # All matched intents (compound support)
+    intents: List[Intent]          # All matched intents (compound support)
     primary_intent: Intent         # First/highest-confidence intent
     confidence: float              # 0–1
-    entities: dict                 # Extracted entities (subject, time, etc.)
-    needs_clarification: bool      # True if confidence too low to act
+    entities: Dict[str, Any]       # Extracted entities (subject, time, date_shift, is_followup, etc.)
+    needs_clarification: bool      # Always False — system resolves ambiguous context from session memory
 
 
 # ── Rule sets (checked in priority order) ─────────────────────────────────────
 
-_RULES: list[tuple[Intent, list[str]]] = [
-    # No AI call needed for these — pure pattern match
+_RULES: List[tuple[Intent, List[str]]] = [
     (Intent.GREETING, [
         r"^(?:hi|hello|hey|yo|good\s+(?:morning|afternoon|evening|day)|sup|what'?s up)\b",
         r"^greetings\b",
@@ -71,77 +70,53 @@ _RULES: list[tuple[Intent, list[str]]] = [
     (Intent.SMALL_TALK, [
         r"\b(?:how\s+are\s+you|how'?s\s+(?:it\s+going|life|everything)|what'?s\s+new|how\s+do\s+you\s+feel)\b",
     ]),
-    # Document import — before study planning
     (Intent.DOCUMENT_IMPORT, [
         r"\b(?:import|read\s+this|scan\s+this|extract\s+from|parse\s+(?:this|my))\b",
         r"\b(?:read|import|scan)\s+my\s+(?:timetable|schedule|pdf|image|assignment|exam)\b",
     ]),
-    # Profile/account — prevent routing to planner
     (Intent.PROFILE_ACCOUNT, [
         r"\b(?:change|update|edit|reset|modify)\s+(?:my\s+)?(?:password|email|name|college|profile|dob|date\s+of\s+birth)\b",
         r"\b(?:forgot\s+password|account\s+settings|my\s+profile)\b",
     ]),
-    # Task completion
     (Intent.TASK_COMPLETION, [
         r"\b(?:finished|completed?|finish|done\s+with|just\s+(?:finished|completed?)|submitted)\s+(?:my\s+)?(?:task|\d+|[A-Za-z0-9]+(?:\s+[A-Za-z0-9]+)?)\b",
         r"\bmark\s+(?:[A-Za-z0-9]+\s+)?(?:as\s+)?(?:complete|done|finished)\b",
     ]),
-    # Schedule constraint
     (Intent.SCHEDULE_CONSTRAINT, [
+        r"\b(?:what\s+about\s+tomorrow|what\s+about\s+next\s+week|how\s+about\s+tomorrow)\b",
         r"\b(?:only\s+have|free\s+(?:for|until|after)|just\s+(?:\d+|one|two|three|four|five|six)|can\s+only\s+study|available\s+(?:for|until|after)|got\s+(?:only\s+)?(?:\d+|one|two|three|four|five|six))\b",
         r"\b(?:reschedule|adjust\s+(?:my\s+)?(?:plan|schedule)|shorter\s+session|missed|skipped)\b",
         r"\b(?:have|got|with)\s*(?:only|just)?\s*(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|half|an?)\s*(?:hours?|hrs?|minutes?|mins?)\b",
         r"\b(?:only|just)\s*(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|half|an?)\s*(?:hours?|hrs?|minutes?|mins?)\b",
-        r"\b(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|half|an?)\s*(?:hours?|hrs?|minutes?|mins?)\s+(?:today|available|free|only|before|until|left|to\s+prepare|to\s+study)\b",
+        r"\b(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|half|an?)\s*(?:hours?|hrs?|minutes?|mins?)\s+(?:today|tomorrow|available|free|only|before|until|left|to\s+prepare|to\s+study)\b",
         r"\b(?:before|until|after)\s+(?:dinner|lunch|breakfast|work|school|\d+\s*(?:am|pm|o'?clock))\b",
     ]),
-    # Motivation
     (Intent.MOTIVATION, [
         r"\b(?:stressed?|anxious|overwhelmed|tired|can'?t\s+focus|burned?\s+out|frustrated|worried|scared|nervous)\b",
         r"\b(?:don'?t\s+know\s+where\s+to\s+start|feeling\s+(?:lost|stuck|behind))\b",
     ]),
-    # Tutor query — Socratic learning, definitions & academic concepts
     (Intent.TUTOR, [
-        r"\b(?:explain|teach\s+me|quiz\s+me|definition\s+of|how\s+does|what\s+is\s+(?:normalization|recursion|binary\s+search|sql|a\s+|an\s+)?)\b",
-        r"\b(?:recursion|normalization|sql|binary\s+search|algorithm|database|data\s+structure)\b",
+        r"\b(?:explain|teach\s+me|quiz\s+me|definition\s+of|how\s+does|what\s+is|tell\s+me\s+about|simplify|simplify\s+that|give\s+(?:another|an?)\s+example|continue|why|why\?|why\s+is\s+that|can\s+I\s+skip|summarize)\b",
+        r"\b(?:recursion|normalization|bcnf|sql|binary\s+search|algorithm|database|data\s+structure|operating\s+system|deadlock)\b",
     ]),
-    # Information query
     (Intent.INFORMATION_QUERY, [
         r"\b(?:what'?s?\s+due|when\s+is|list\s+my|show\s+me|how\s+many|what\s+are\s+my)\b",
         r"\b(?:upcoming|overdue|deadlines?|this\s+week|next\s+week)\b",
     ]),
-    # Learning analytics queries
     (Intent.LEARNING_ANALYTICS, [
         r"\b(?:how\s+am\s+I\s+improving|what\s+should\s+I\s+revise|what\s+topics\s+am\s+I\s+forgetting|show\s+my\s+weakest\s+concepts|how\s+is\s+my\s+learning\s+progress|show\s+my\s+mastery|do\s+I\s+need\s+revision\s+today|analytics|progress\s+report)\b",
         r"\b(?:forgetting|mastery|revision|improving|progress|retention|streak|analytics)\b",
     ]),
-    # Study planning — most general, check last
     (Intent.STUDY_PLANNING, [
         r"\b(?:what\s+should\s+I\s+study|help\s+me\s+(?:study|plan)|study\s+plan|plan\s+for\s+today|prioritize|my\s+schedule|remind\s+me)\b",
         r"\b(?:what\s+to\s+study|which\s+subject|study\s+(?:next|now|today|first))\b",
     ]),
 ]
 
-_COMPILED_RULES: list[tuple[Intent, list[re.Pattern]]] = [
+_COMPILED_RULES: List[tuple[Intent, List[re.Pattern]]] = [
     (intent, [re.compile(p, re.IGNORECASE) for p in patterns])
     for intent, patterns in _RULES
 ]
-
-_LOW_CONFIDENCE_THRESHOLD = 0.35
-
-
-def _extract_subject(message: str) -> Optional[str]:
-    """Extract subject name from task completion messages."""
-    patterns = [
-        r"(?:finished|completed?|done\s+with|submitted)\s+(?:my\s+)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)",
-        r"mark\s+([A-Z][a-z]+)\s+(?:as\s+)?(?:complete|done)",
-    ]
-    for p in patterns:
-        m = re.search(p, message)
-        if m:
-            return m.group(1).strip()
-    m = re.search(r"(?:finished|completed?|done\s+with)\s+(\w+)", message, re.IGNORECASE)
-    return m.group(1) if m else None
 
 
 _WORD_TO_NUM = {
@@ -150,8 +125,9 @@ _WORD_TO_NUM = {
     "half": 0.5, "a": 1, "an": 1
 }
 
+
 def _extract_time_minutes(message: str) -> Optional[int]:
-    """Extract available minutes from constraint messages."""
+    """Extract available study time in minutes."""
     msg = message.lower()
     for word, num in _WORD_TO_NUM.items():
         msg = re.sub(rf"\b{word}\b", str(num), msg)
@@ -165,13 +141,40 @@ def _extract_time_minutes(message: str) -> Optional[int]:
     return None
 
 
+def _extract_date_shift(message: str) -> Optional[str]:
+    """Extract relative date target: 'tomorrow', 'next_week', 'today'."""
+    msg = message.lower()
+    if "tomorrow" in msg:
+        return "tomorrow"
+    if "next week" in msg or "next 7 days" in msg:
+        return "next_week"
+    if "today" in msg or "tonight" in msg:
+        return "today"
+    return None
+
+
+def _check_is_followup(message: str) -> bool:
+    """Detect follow-up queries that build on preceding context."""
+    msg = message.lower().strip()
+    followup_patterns = [
+        r"^what\s+about\b",
+        r"^how\s+about\b",
+        r"^what\s+if\b",
+        r"^and\s+for\b",
+        r"\binstead\b",
+        r"\balso\b",
+        r"\bcan\s+we\s+make\s+it\b",
+        r"\bmake\s+it\b",
+        r"\btomorrow\b",
+    ]
+    return any(re.search(p, msg) for p in followup_patterns)
+
+
 def classify(message: str) -> IntentResult:
     """
-    Classify a user message into one or more intent categories.
-
-    Rule-based pre-compiled regex matching — zero AI calls for clearly-patterned intents.
-    Returns all matched intents for compound handling.
-    Same message → same classification always (deterministic).
+    Classify user message into intents and extract structured entities.
+    Determines primary intent, compound intents, relative date shifts, and follow-up flags.
+    Never returns needs_clarification=True.
     """
     if not message or not message.strip():
         return IntentResult(
@@ -179,11 +182,11 @@ def classify(message: str) -> IntentResult:
             primary_intent=Intent.UNKNOWN,
             confidence=0.0,
             entities={},
-            needs_clarification=True,
+            needs_clarification=False,
         )
 
     msg_lower = message.strip().lower()
-    matched_intents: list[Intent] = []
+    matched_intents: List[Intent] = []
 
     for intent, compiled_patterns in _COMPILED_RULES:
         for pattern in compiled_patterns:
@@ -192,31 +195,41 @@ def classify(message: str) -> IntentResult:
                     matched_intents.append(intent)
                 break
 
-    entities = {}
-    if Intent.TASK_COMPLETION in matched_intents:
-        subject = _extract_subject(message)
-        if subject:
-            entities["completed_subject"] = subject
+    entities: Dict[str, Any] = {}
+    
+    # Extract time minutes
+    minutes = _extract_time_minutes(message)
+    if minutes:
+        entities["available_minutes"] = minutes
 
-    if Intent.SCHEDULE_CONSTRAINT in matched_intents:
-        minutes = _extract_time_minutes(message)
-        if minutes:
-            entities["available_minutes"] = minutes
+    # Extract date shift
+    date_shift = _extract_date_shift(message)
+    if date_shift:
+        entities["date_shift"] = date_shift
+
+    # Check follow-up
+    is_followup = _check_is_followup(message)
+    if is_followup:
+        entities["is_followup"] = True
 
     if not matched_intents:
-        confidence = 0.2
-        matched_intents = [Intent.UNKNOWN]
+        # If it's a follow-up or contains time/date shift, route to STUDY_PLANNING / SCHEDULE_CONSTRAINT
+        if minutes or date_shift or is_followup:
+            matched_intents = [Intent.SCHEDULE_CONSTRAINT if minutes else Intent.STUDY_PLANNING]
+            confidence = 0.75
+        else:
+            confidence = 0.5
+            matched_intents = [Intent.UNKNOWN]
     elif len(matched_intents) == 1:
         confidence = 0.9
     else:
-        confidence = 0.75  # Compound message
+        confidence = 0.75
 
     primary = matched_intents[0]
-    needs_clarification = False
 
     logger.info(
-        "IntentClassifier: intents=%s confidence=%.2f entities=%s",
-        [i.value for i in matched_intents], confidence, entities,
+        "IntentClassifier: intents=%s primary=%s confidence=%.2f entities=%s",
+        [i.value for i in matched_intents], primary.value, confidence, entities,
     )
 
     return IntentResult(
@@ -224,5 +237,5 @@ def classify(message: str) -> IntentResult:
         primary_intent=primary,
         confidence=confidence,
         entities=entities,
-        needs_clarification=needs_clarification,
+        needs_clarification=False,
     )

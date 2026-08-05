@@ -62,6 +62,7 @@ from app.models.imported_document import ImportedDocument
 from app.models.learning_profile import LearningProfile
 from app.models.task import Task
 from app.services.ai_client import AIInferenceClient
+from app.agents.session_state import get_session, update_session
 
 logger = logging.getLogger(__name__)
 
@@ -327,60 +328,109 @@ def execute_swarm_workflow(
     logger.info("=" * 50)
     logger.info("Orchestrator: user_id=%d query=%r", user_id, user_query)
 
-    # ── Step 1: Intent + Entity Extraction ────────────────────────────────────
+    # ── Step 1: Intent + Entity Extraction + Session Context Resolution ───────
+    session = get_session(user_id)
     intent_res = classify(user_query)
     primary_intent = intent_res.primary_intent
     primary_intent_value = primary_intent.value
+
     user_time_limit = _extract_user_time_limit(user_query) or intent_res.entities.get("available_minutes")
     subject_hint = _extract_subject_hint(user_query)
+
+    # Inherit session context if this is a follow-up or contains date shift
+    is_followup = intent_res.entities.get("is_followup", False)
+    date_shift = intent_res.entities.get("date_shift")
+
+    if (is_followup or date_shift) and not subject_hint:
+        subject_hint = session.last_subject
+    if (is_followup or date_shift) and not user_time_limit:
+        user_time_limit = session.last_time_limit or 90
+
+    if subject_hint:
+        session.last_subject = subject_hint
+    if user_time_limit:
+        session.last_time_limit = user_time_limit
+
+    summary_text = f"Classified intent: '{primary_intent_value}'"
+    if subject_hint:
+        summary_text += f" | Subject: {subject_hint}"
+    if user_time_limit:
+        summary_text += f" | Time: {user_time_limit}m"
+    if date_shift:
+        summary_text += f" | Target: {date_shift.title()}"
+    if is_followup:
+        summary_text += " | Follow-up context resolved"
 
     step_logs.append(SwarmStepLog(
         agent_name="IntentAgent",
         status="completed",
-        summary=(
-            f"Classified intent: '{primary_intent_value}'"
-            + (f" | Subject: {subject_hint}" if subject_hint else "")
-            + (f" | Time: {user_time_limit}m" if user_time_limit else "")
-        ),
+        summary=summary_text,
     ))
-    logger.info("IntentAgent: intent=%r subject=%r time=%s", primary_intent_value, subject_hint, user_time_limit)
+    logger.info("IntentAgent: intent=%r subject=%r time=%s date_shift=%s", primary_intent_value, subject_hint, user_time_limit, date_shift)
 
-    # ── Step 2: Learning Profile Context ─────────────────────────────────────
+    # ── Step 1.5: Dynamic Execution Graph Construction ─────────────────────
+    from app.agents.graph_builder import build_execution_graph, visualize_runtime_graph
+    from app.agents.context_agent import build_minimal_context
+
+    has_doc = bool(document_id or session.last_imported_document_id)
+    has_time = bool(user_time_limit or session.last_time_limit)
+
+    exec_graph = build_execution_graph(
+        intent=intent_res.primary_intent,
+        user_query=user_query,
+        has_document=has_doc,
+        has_time_constraint=has_time,
+    )
+
+    # Record skipped agents explicitly in step logs
+    for skipped in exec_graph.skipped_agents:
+        step_logs.append(SwarmStepLog(
+            agent_name=skipped.agent_name,
+            status="skipped",
+            summary=skipped.skip_reason,
+        ))
+
+    # ── Step 2: ContextAgent (Selective Pruning) ───────────────────────────
     learning_ctx = _get_learning_context(user_id, subject_hint, db)
     avg_mastery = learning_ctx.get("avg_mastery", 50.0)
 
-    if learning_ctx["has_learning_data"]:
-        step_logs.append(SwarmStepLog(
-            agent_name="ContextBuilder",
-            status="completed",
-            summary=(
-                f"Loaded {learning_ctx['total_profiles']} learning profiles | "
-                f"Avg mastery: {avg_mastery:.0f}% | "
-                f"Avg retention: {learning_ctx['avg_retention']:.0f}% | "
-                f"Weak topics: {len(learning_ctx.get('weak_topics', []))}"
-            ),
-        ))
-    else:
-        step_logs.append(SwarmStepLog(
-            agent_name="ContextBuilder",
-            status="completed",
-            summary="No learning profile data yet — using default mastery values.",
-        ))
+    minimal_ctx = build_minimal_context(
+        user_query=user_query,
+        intent=primary_intent_value,
+        session=session,
+        subject_hint=subject_hint,
+        time_limit_minutes=user_time_limit,
+    )
+    step_logs.append(SwarmStepLog(
+        agent_name="ContextAgent",
+        status="completed",
+        summary=f"Pruned conversation history to {len(minimal_ctx.pruned_history)} turns for intent '{primary_intent_value}'",
+    ))
 
-    # ── SHORT-CIRCUIT: Greeting / Casual / Goodbye ─────────────────────────
-    if primary_intent in (Intent.GREETING, Intent.GOODBYE, Intent.GRATITUDE, Intent.SMALL_TALK, Intent.CASUAL):
+    # ── Branch 1: Conversational / Greeting Dynamic Graph ─────────────────
+    if "TutorAgent" not in exec_graph.active_agents and "PlannerAgent" not in exec_graph.active_agents and "AnalyticsAgent" not in exec_graph.active_agents:
         analytics = generate_analytics_summary(user_id, db)
         result = SwarmExecutionResult(
             user_id=user_id,
             primary_intent=primary_intent_value,
+            execution_graph=exec_graph,
             analytics=analytics,
             step_logs=step_logs,
+            skipped_agents=exec_graph.skipped_agents,
         )
+        ctx = {"user_query": user_query, "intent": primary_intent_value, "learning_ctx": learning_ctx, "history": minimal_ctx.pruned_history}
+        try:
+            nl_resp = ai_client.generate("chat_answer", ctx)
+            if nl_resp and len(nl_resp.strip()) > 10:
+                result.custom_nl_response = nl_resp.strip()
+        except Exception as exc:
+            logger.warning("Greeting Gemini call notice: %s", exc)
         result.formatted_response = build_final_response(result, user_query, learning_ctx)
+        session.add_turn(user_query, result.formatted_response, primary_intent_value)
         return result
 
-    # ── SHORT-CIRCUIT: Learning Analytics query ────────────────────────────
-    if primary_intent == Intent.LEARNING_ANALYTICS:
+    # ── Branch 2: Analytics Query Dynamic Graph ────────────────────────────
+    if "AnalyticsAgent" in exec_graph.active_agents and "PlannerAgent" not in exec_graph.active_agents and "TutorAgent" not in exec_graph.active_agents:
         analytics = generate_analytics_summary(user_id, db)
         step_logs.append(SwarmStepLog(
             agent_name="AnalyticsAgent",
@@ -390,10 +440,68 @@ def execute_swarm_workflow(
         result = SwarmExecutionResult(
             user_id=user_id,
             primary_intent=primary_intent_value,
+            execution_graph=exec_graph,
             analytics=analytics,
             step_logs=step_logs,
+            skipped_agents=exec_graph.skipped_agents,
         )
+        ctx = {"user_query": user_query, "intent": primary_intent_value, "analytics": {"completion_rate": analytics.completion_rate, "burnout_risk_level": analytics.burnout_risk_level, "predicted_exam_readiness": analytics.predicted_exam_readiness}, "history": minimal_ctx.pruned_history}
+        try:
+            nl_resp = ai_client.generate("chat_answer", ctx)
+            if nl_resp and len(nl_resp.strip()) > 10:
+                result.custom_nl_response = nl_resp.strip()
+        except Exception as exc:
+            logger.warning("Analytics Gemini call notice: %s", exc)
         result.formatted_response = build_final_response(result, user_query, learning_ctx)
+        session.add_turn(user_query, result.formatted_response, primary_intent_value)
+        return result
+
+    # ── Branch 3: Tutor / Explanation Dynamic Graph ───────────────────────
+    if "TutorAgent" in exec_graph.active_agents and "PlannerAgent" not in exec_graph.active_agents:
+        step_logs.append(SwarmStepLog(
+            agent_name="RetrievalAgent",
+            status="completed",
+            summary=f"Semantic search query: '{subject_hint or 'General'}'",
+        ))
+        graph = _find_best_matching_graph(user_id, subject_hint, db, memory)
+        if graph:
+            step_logs.append(SwarmStepLog(
+                agent_name="DocumentAgent",
+                status="completed",
+                summary=f"Retrieved '{graph.subject}' knowledge graph ({len(graph.concepts)} concepts)",
+            ))
+        step_logs.append(SwarmStepLog(
+            agent_name="TutorAgent",
+            status="completed",
+            summary=f"Grounded Socratic explanation for '{subject_hint or 'General'}'",
+        ))
+        result = SwarmExecutionResult(
+            user_id=user_id,
+            primary_intent=primary_intent_value,
+            execution_graph=exec_graph,
+            knowledge_graph=graph,
+            step_logs=step_logs,
+            skipped_agents=exec_graph.skipped_agents,
+        )
+        ctx = {
+            "user_query": user_query,
+            "intent": primary_intent_value,
+            "subject": subject_hint or (graph.subject if graph else "General"),
+            "learning_ctx": learning_ctx,
+            "history": minimal_ctx.pruned_history,
+            "knowledge_graph": {
+                "subject": graph.subject,
+                "concepts": [{"title": c.title, "summary": c.summary, "chapter": c.chapter} for c in graph.concepts[:5]]
+            } if graph else None
+        }
+        try:
+            nl_resp = ai_client.generate("tutor_evaluate_response" if "quiz" in user_query.lower() else "chat_answer", ctx)
+            if nl_resp and len(nl_resp.strip()) > 10:
+                result.custom_nl_response = nl_resp.strip()
+        except Exception as exc:
+            logger.warning("Tutor Gemini call notice: %s", exc)
+        result.formatted_response = build_final_response(result, user_query, learning_ctx)
+        session.add_turn(user_query, result.formatted_response, primary_intent_value)
         return result
 
     # ── Step 3: Knowledge Graph Selection ─────────────────────────────────
@@ -545,18 +653,55 @@ def execute_swarm_workflow(
         ),
     ))
 
-    # ── Build result ───────────────────────────────────────────────────────
+    # ── Step 9: Call Gemini AI Client for Natural Mentor Response ─────────
+    history_turns = [
+        {"user_query": turn.user_query, "bot_response": turn.bot_response, "intent": turn.intent}
+        for turn in session.history
+    ]
+
+    context_payload = {
+        "user_query": user_query,
+        "intent": primary_intent_value,
+        "subject": subject_hint or (graph.subject if graph else "General"),
+        "learning_ctx": learning_ctx,
+        "history": history_turns,
+        "knowledge_graph": {
+            "subject": graph.subject,
+            "concepts": [{"title": c.title, "summary": c.summary, "chapter": c.chapter} for c in graph.concepts[:5]]
+        } if graph else None,
+        "plan": {
+            "available_minutes": structured_plan.available_minutes,
+            "allocated_minutes": structured_plan.allocated_minutes,
+            "items": [{"title": i.title, "subject": i.subject, "recommended_minutes": i.recommended_minutes, "priority_score": i.priority_score, "days_remaining": i.days_remaining} for i in structured_plan.items]
+        } if structured_plan else None,
+        "analytics": {
+            "completion_rate": analytics.completion_rate,
+            "burnout_risk_level": analytics.burnout_risk_level,
+            "predicted_exam_readiness": analytics.predicted_exam_readiness
+        } if analytics else None
+    }
+
     result = SwarmExecutionResult(
         user_id=user_id,
         primary_intent=primary_intent_value,
+        execution_graph=exec_graph,
         knowledge_graph=graph,
         strategy=strategy,
         plan=structured_plan,
         reflection=reflection,
         analytics=analytics,
         step_logs=step_logs,
+        skipped_agents=exec_graph.skipped_agents,
     )
 
+    try:
+        custom_response = ai_client.generate("chat_answer", context_payload)
+        if custom_response and len(custom_response.strip()) > 10:
+            result.custom_nl_response = custom_response.strip()
+    except Exception as exc:
+        logger.warning("Orchestrator: Gemini NL generation notice: %s", exc)
+
     result.formatted_response = build_final_response(result, user_query, learning_ctx)
+    session.add_turn(user_query, result.formatted_response, primary_intent_value)
     logger.info("Orchestrator done: user=%d steps=%d intent=%r", user_id, len(step_logs), primary_intent_value)
     return result

@@ -10,8 +10,18 @@ Startup sequence:
 All routes are mounted here under /api/*.
 """
 
+import sys
+import io
 import logging
 from contextlib import asynccontextmanager
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -54,6 +64,20 @@ async def lifespan(app: FastAPI):
 
         # 3. Score all seeded tasks so priority scores are ready immediately
         ai_client = get_ai_client()
+        client_name = type(ai_client).__name__
+        key_loaded = bool(settings.gemini_api_key and "YOUR_GEMINI" not in settings.gemini_api_key.upper())
+        fallback_disabled = settings.disable_ai_fallback
+
+        logger.info(
+            "\n============================================================\n"
+            "AI CLIENT ASSERTION REPORT:\n"
+            "AI CLIENT = %s\n"
+            "Model = %s\n"
+            "Fallback Disabled = %s\n"
+            "API Key Loaded = %s\n"
+            "============================================================",
+            client_name, settings.gemini_model, fallback_disabled, key_loaded
+        )
         users = db.query(User).all()
         for user in users:
             try:

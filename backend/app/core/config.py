@@ -21,13 +21,19 @@ class Settings(BaseSettings):
     # ── Database ──────────────────────────────────────────────────────────────
     database_url: str = "sqlite:///./study_reminder.db"
 
-    # ── AI Service ────────────────────────────────────────────────────────────
+    # ── AI Service & Gemini API ───────────────────────────────────────────────
     # "local" → template-based LocalAIService (zero external deps)
     # "remote" → RemoteAIService calling AMD JupyterLab endpoint
+    # "gemini" → GeminiAIClient calling Google Gemini API
     ai_service_mode: str = "local"
     ai_service_url: str = "https://dub.aupcloud.io/aipc-14"
     ai_service_token: str = ""
     ai_service_timeout: float = 10.0  # seconds before falling back to local
+
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.0-flash"
+    use_gemini: bool = True
+    disable_ai_fallback: bool = True  # Strict testing mode: fail visibly if Gemini fails
 
     # ── Scheduler ─────────────────────────────────────────────────────────────
     reminder_poll_interval: int = 60  # seconds

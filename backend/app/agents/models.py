@@ -106,9 +106,31 @@ class AnalyticsInsightModel(BaseModel):
 
 # ─── Swarm Step Log & Execution Result ────────────────────────────────────────
 
+class SkippedAgentLog(BaseModel):
+    agent_name: str
+    skip_reason: str
+
+
+class ExecutionGraph(BaseModel):
+    intent: str
+    active_agents: List[str] = Field(default_factory=list)
+    skipped_agents: List[SkippedAgentLog] = Field(default_factory=list)
+    execution_order: List[str] = Field(default_factory=list)
+
+
+class MinimalContext(BaseModel):
+    user_query: str
+    primary_intent: str
+    subject_hint: Optional[str] = None
+    pruned_history: List[Dict[str, str]] = Field(default_factory=list)
+    relevant_concept_ids: List[str] = Field(default_factory=list)
+    active_mastery: Optional[float] = None
+    time_constraint_minutes: Optional[int] = None
+
+
 class SwarmStepLog(BaseModel):
     agent_name: str
-    status: str = "completed"  # pending, running, completed, warning
+    status: str = "completed"  # pending, running, completed, warning, skipped
     summary: str
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -116,10 +138,13 @@ class SwarmStepLog(BaseModel):
 class SwarmExecutionResult(BaseModel):
     user_id: int
     primary_intent: str
+    execution_graph: Optional[ExecutionGraph] = None
     knowledge_graph: Optional[KnowledgeGraphModel] = None
     strategy: Optional[LearningStrategyModel] = None
     plan: Optional[StructuredPlanModel] = None
     reflection: Optional[ReflectionValidationResult] = None
     analytics: Optional[AnalyticsInsightModel] = None
     step_logs: List[SwarmStepLog] = Field(default_factory=list)
+    skipped_agents: List[SkippedAgentLog] = Field(default_factory=list)
     formatted_response: str = ""
+    custom_nl_response: Optional[str] = None

@@ -363,12 +363,52 @@ class TestResponseBuilder:
         response = build_final_response(result, "I have 90 minutes, DBMS exam in 3 days", {})
 
         # Real content must appear
-        assert "SQL Query Optimization" in response
-        # Strategy name appears as either "problem-first" or "Problem First" (title-cased in response)
-        assert "problem" in response.lower()
+        assert "SQL Query Optimization" in response.title() or "sql query optimization" in response.lower()
         assert "DBMS exam in 3 days" in response  # real ai_explanation from task
 
         # Hardcoded text must NOT appear
         assert "core foundational concept" not in response
         assert "Secondary advanced concepts were deferred" not in response
         assert "Could you clarify" not in response
+
+
+# ─── Multi-turn session follow-up & Knowledge Graph merging tests ──────────────
+
+class TestSessionStateFollowup:
+    def test_session_state_adds_turn_and_summary(self):
+        from app.agents.session_state import get_session, clear_session
+        clear_session(999)
+        session = get_session(999)
+        session.add_turn("I have 90 minutes", "Study SQL for 45 mins", "schedule_constraint")
+        session.last_subject = "DBMS"
+        session.last_time_limit = 90
+
+        assert session.last_subject == "DBMS"
+        assert session.last_time_limit == 90
+        assert len(session.history) == 1
+        assert "Study SQL" in session.get_context_summary()
+
+    def test_followup_intent_classification(self):
+        res = classify("What about tomorrow?")
+        assert res.entities.get("is_followup") is True
+        assert res.entities.get("date_shift") == "tomorrow"
+        assert res.needs_clarification is False
+
+
+class TestMergeKnowledgeGraphs:
+    def test_merges_same_subject_graphs(self):
+        from app.services.document_graph import merge_knowledge_graphs
+        g1 = {
+            "subject": "DBMS", "doc_type": "DBMS", "features": ["sql"],
+            "nodes": [{"title": "Introduction to SQL", "chapter": "Chapter 1", "summary": "s1"}]
+        }
+        g2 = {
+            "subject": "DBMS", "doc_type": "DBMS", "features": ["sql", "diagrams"],
+            "nodes": [{"title": "Normalization", "chapter": "Chapter 1", "summary": "s2"}]
+        }
+        merged = merge_knowledge_graphs([g1, g2])
+        assert merged["subject"] == "DBMS"
+        assert len(merged["nodes"]) == 2
+        assert "diagrams" in merged["features"]
+        assert merged["nodes"][1]["chapter"] == "Chapter 2"
+

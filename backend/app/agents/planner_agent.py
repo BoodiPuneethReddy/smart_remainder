@@ -101,28 +101,29 @@ def score_all_tasks(user_id: int, db: Session, ai_client: AIInferenceClient) -> 
             estimated_hours=task.estimated_hours,
         )
 
-        try:
-            ai_explanation = ai_client.generate(
-                "explain_priority",
-                {
-                    "subject": task.subject,
-                    "task_type": task.task_type,
-                    "days_remaining": result["days_remaining"],
-                    "estimated_hours": task.estimated_hours,
-                    "top_factors": result["top_factors"],
-                    "priority_score": result["priority_score"],
-                    "urgency_score": result["urgency_score"],
-                    "importance_score": result["importance_score"],
-                    "weakness_score": result["weakness_score"],
-                    "effort_score": result["effort_score"],
-                    "retention_score": result["retention_score"],
-                    "template_suggestion": template_explanation,
-                },
-            )
-            task.ai_explanation = ai_explanation or template_explanation
-        except Exception as exc:
-            logger.warning("Planner: AI explanation failed for task %d: %s", task.id, exc)
-            task.ai_explanation = template_explanation
+        if not task.ai_explanation:
+            try:
+                ai_explanation = ai_client.generate(
+                    "explain_priority",
+                    {
+                        "subject": task.subject,
+                        "task_type": task.task_type,
+                        "days_remaining": result["days_remaining"],
+                        "estimated_hours": task.estimated_hours,
+                        "top_factors": result["top_factors"],
+                        "priority_score": result["priority_score"],
+                        "urgency_score": result["urgency_score"],
+                        "importance_score": result["importance_score"],
+                        "weakness_score": result["weakness_score"],
+                        "effort_score": result["effort_score"],
+                        "retention_score": result["retention_score"],
+                        "template_suggestion": template_explanation,
+                    },
+                )
+                task.ai_explanation = ai_explanation or template_explanation
+            except Exception as exc:
+                logger.warning("Planner: AI explanation failed for task %d: %s", task.id, exc)
+                task.ai_explanation = template_explanation
 
     db.commit()
     return sorted(tasks, key=lambda t: t.priority_score, reverse=True)

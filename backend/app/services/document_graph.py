@@ -325,3 +325,51 @@ def build_document_knowledge_graph(extracted_text: str, filename: str = "Documen
         "edges": edges,
         "features": result.get("features", ["concepts", "notes", "prerequisites"])
     }
+
+
+def merge_knowledge_graphs(graphs: List[dict]) -> dict:
+    """
+    Merge multiple knowledge graph dictionaries of the SAME subject domain.
+    Deduplicates nodes by title, re-indexes chapters, and merges edges and features.
+    """
+    if not graphs:
+        return {
+            "subject": "General Academic Study",
+            "doc_type": "ACADEMIC",
+            "nodes": [],
+            "edges": [],
+            "features": ["concepts", "notes", "prerequisites"]
+        }
+    if len(graphs) == 1:
+        return graphs[0]
+
+    merged_subject = graphs[0].get("subject", "General Academic Study")
+    merged_doc_type = graphs[0].get("doc_type", "ACADEMIC")
+
+    seen_titles = set()
+    combined_nodes = []
+    combined_features = set()
+
+    for g in graphs:
+        combined_features.update(g.get("features", []))
+        for n in g.get("nodes", []):
+            t_lower = n.get("title", "").strip().lower()
+            if t_lower and t_lower not in seen_titles:
+                seen_titles.add(t_lower)
+                # Clone node with re-indexed chapter
+                node_copy = dict(n)
+                node_copy["chapter"] = f"Chapter {len(combined_nodes) + 1}"
+                combined_nodes.append(node_copy)
+
+    combined_edges = []
+    for idx in range(len(combined_nodes) - 1):
+        combined_edges.append({"from": f"c{idx+1}", "to": f"c{idx+2}"})
+
+    return {
+        "subject": merged_subject,
+        "doc_type": merged_doc_type,
+        "nodes": combined_nodes,
+        "edges": combined_edges,
+        "features": list(combined_features)
+    }
+

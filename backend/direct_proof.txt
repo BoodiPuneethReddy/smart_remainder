@@ -1,0 +1,147 @@
+================================================================================
+           DIRECT RUNTIME EVIDENCE REPORT — 10 BENCHMARK PROMPTS
+================================================================================
+
+
+################################################################################
+PROMPT 1: "Hi"
+################################################################################
+
+1. EXACT REQUEST PAYLOAD:
+{
+  "question": "Hi"
+}
+
+2. EXACT PROMPT SENT TO GEMINI (Sample System Prompt Construction):
+--------------------------------------------------------------------------------
+You are a personal academic AI study mentor with full memory of this student's progress.
+User Query: "Hi"
+Context: Intent = greeting | Subject Focus = DBMS
+
+MENTOR GUIDELINES:
+1. Be empathetic, intelligent, and direct. Talk like ChatGPT or an expert mentor.
+2. NEVER use template headers or list backend agent names (no 'DocumentAgent', 'StrategyAgent', etc.).
+3. If the user asks a follow-up ('Why?', 'Simplify that', 'Give another example', 'Continue'), reference the previous conversation naturally.
+4. If the prompt is ambiguous, ask a friendly clarifying question instead of guessing.
+
+
+Provide a helpful, precise, natural Markdown response.
+--------------------------------------------------------------------------------
+
+3. AGENTS ACTUALLY EXECUTED (Step Logs):
+Total Agents Executed: 2
+  • IntentAgent -> Status: completed | Summary: Classified intent: 'greeting'
+  • ContextBuilder -> Status: completed | Summary: No learning profile data yet — using default mastery values.
+
+4. RAW GEMINI RESPONSE / RETURNED ANSWER:
+--------------------------------------------------------------------------------
+Hello! Welcome back to your study session. 👋
+
+• **Current Task Completion:** 0%
+• **Predicted Exam Readiness:** 0%
+What would you like to accomplish today? Ask me to explain a concept, build a custom schedule, or review your weak topics.
+--------------------------------------------------------------------------------
+
+5. TEMPLATE SANITIZATION CHECK:
+✅ PASSED: 0 template artifacts detected in output text.
+
+6. EXACT JSON STRUCTURE RETURNED TO FRONTEND:
+{
+  "primary_intent": "greeting",
+  "step_logs_count": 2,
+  "step_agents": [
+    "IntentAgent",
+    "ContextBuilder"
+  ],
+  "answer_preview": "Hello! Welcome back to your study session. \ud83d\udc4b\n\n\u2022 **Current Task Completion:** 0%\n\u2022 **Predicted Exam Readiness:** 0%\nWhat would you like to accomplish t..."
+}
+
+################################################################################
+PROMPT 2: "What should I do now?"
+################################################################################
+
+1. EXACT REQUEST PAYLOAD:
+{
+  "question": "What should I do now?"
+}
+EXECUTION NOTICE: 'ConversationTurn' object has no attribute 'role'
+
+################################################################################
+PROMPT 3: "Explain normalization"
+################################################################################
+
+1. EXACT REQUEST PAYLOAD:
+{
+  "question": "Explain normalization"
+}
+EXECUTION NOTICE: 'ConversationTurn' object has no attribute 'role'
+
+################################################################################
+PROMPT 4: "Why?"
+################################################################################
+
+1. EXACT REQUEST PAYLOAD:
+{
+  "question": "Why?"
+}
+EXECUTION NOTICE: 'ConversationTurn' object has no attribute 'role'
+
+################################################################################
+PROMPT 5: "Give another example."
+################################################################################
+
+1. EXACT REQUEST PAYLOAD:
+{
+  "question": "Give another example."
+}
+EXECUTION NOTICE: 'ConversationTurn' object has no attribute 'role'
+
+################################################################################
+PROMPT 6: "I only have 2 hours today."
+################################################################################
+
+1. EXACT REQUEST PAYLOAD:
+{
+  "question": "I only have 2 hours today."
+}
+EXECUTION NOTICE: 'ConversationTurn' object has no attribute 'role'
+
+################################################################################
+PROMPT 7: "Create a one hour schedule."
+################################################################################
+
+1. EXACT REQUEST PAYLOAD:
+{
+  "question": "Create a one hour schedule."
+}
+EXECUTION NOTICE: 'ConversationTurn' object has no attribute 'role'
+
+################################################################################
+PROMPT 8: "Quiz me."
+################################################################################
+
+1. EXACT REQUEST PAYLOAD:
+{
+  "question": "Quiz me."
+}
+EXECUTION NOTICE: 'ConversationTurn' object has no attribute 'role'
+
+################################################################################
+PROMPT 9: "Continue."
+################################################################################
+
+1. EXACT REQUEST PAYLOAD:
+{
+  "question": "Continue."
+}
+EXECUTION NOTICE: 'ConversationTurn' object has no attribute 'role'
+
+################################################################################
+PROMPT 10: "Explain BCNF simply."
+################################################################################
+
+1. EXACT REQUEST PAYLOAD:
+{
+  "question": "Explain BCNF simply."
+}
+EXECUTION NOTICE: 'ConversationTurn' object has no attribute 'role'

@@ -20,9 +20,10 @@ task must be one of:
                          computed schedule (AI presents, never decides)
 """
 
+import time
 import logging
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Protocol, runtime_checkable
 
 import httpx
@@ -1024,28 +1025,162 @@ class RemoteAIService:
             return self._fallback.generate(task, context)
 
 
+# ─── GeminiAIClient ────────────────────────────────────────────────────────────
+
+class GeminiAIClient:
+    """
+    Calls official Google Gemini API (gemini-2.0-flash / gemini-1.5-flash) over HTTP
+    with exponential backoff retries, timeout handling, structured logging,
+    and fallback control (disabled during strict testing mode).
+    """
+
+    def __init__(self, api_key: str, model: str = "gemini-2.0-flash", timeout: float = 15.0):
+        self._api_key = api_key
+        self._model = model or "gemini-2.0-flash"
+        self._timeout = timeout
+        self._fallback = LocalAIService()
+        self._endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{self._model}:generateContent"
+
+    def _is_placeholder_key(self) -> bool:
+        if not self._api_key:
+            return True
+        key = self._api_key.strip().upper()
+        return "YOUR_GEMINI_API_KEY" in key or "PLACEHOLDER" in key or len(key) < 10
+
+    def _build_prompt_for_task(self, task: str, context: dict) -> str:
+        from app.services.prompt_builders import (
+            build_tutor_prompt,
+            build_planner_explanation_prompt,
+            build_reflection_prompt,
+            build_chat_recommendation_prompt,
+            build_document_analysis_prompt,
+        )
+        if task in ("chat_answer", "teaching_mode_summary"):
+            return build_chat_recommendation_prompt(context)
+        elif task in ("tutor_init_prompt", "tutor_evaluate_response", "tutor_generate_hint"):
+            return build_tutor_prompt(context)
+        elif task in ("explain_priority", "present_study_plan", "build_schedule"):
+            return build_planner_explanation_prompt(context)
+        elif task in ("evaluate_rubric", "verify_academic_extraction"):
+            return build_reflection_prompt(context)
+        elif task == "document_analysis":
+            return build_document_analysis_prompt(context.get("text", ""), context.get("filename", "Doc.pdf"))
+        else:
+            return build_chat_recommendation_prompt(context)
+
+    def generate(self, task: str, context: dict) -> str:
+        settings = get_settings()
+        disable_fallback = settings.disable_ai_fallback
+
+        if self._is_placeholder_key():
+            msg = "GeminiAIClient: GEMINI_API_KEY is missing or placeholder."
+            if disable_fallback:
+                logger.error("STRICT TESTING MODE ACTIVE: %s Raising exception.", msg)
+                raise RuntimeError(f"Gemini API Error: {msg}")
+            logger.warning("%s Falling back to LocalAIService.", msg)
+            return self._fallback.generate(task, context)
+
+        prompt = self._build_prompt_for_task(task, context)
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        params = {"key": self._api_key}
+
+        start_time = time.time()
+        logger.info(
+            "\n========================\nGEMINI REQUEST\n========================\n"
+            "Task: %s\nModel: %s\nPrompt Length: %d chars\nContext Keys: %s\nTimestamp: %s\n"
+            "========================",
+            task, self._model, len(prompt), list(context.keys()), datetime.now(timezone.utc).isoformat()
+        )
+
+        max_retries = 3
+        last_exception = None
+
+        for attempt in range(max_retries):
+            try:
+                response = httpx.post(
+                    self._endpoint,
+                    params=params,
+                    json=payload,
+                    timeout=self._timeout,
+                )
+                if response.status_code == 429:
+                    logger.warning("GeminiAIClient rate limited (429). Retry attempt %d/%d...", attempt + 1, max_retries)
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+
+                response.raise_for_status()
+                data = response.json()
+                candidates = data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts and "text" in parts[0]:
+                        generated_text = parts[0]["text"].strip()
+                        latency_ms = (time.time() - start_time) * 1000
+                        logger.info(
+                            "\n========================\nGEMINI RESPONSE SUCCESS\n========================\n"
+                            "Latency: %.2f ms\nModel: %s\nReturned Text: %r\n"
+                            "========================",
+                            latency_ms, self._model, generated_text[:200]
+                        )
+                        return generated_text
+
+                logger.warning("GeminiAIClient: Empty content candidate from API.")
+                raise RuntimeError("Empty response content from Gemini API.")
+
+            except Exception as exc:
+                last_exception = exc
+                latency_ms = (time.time() - start_time) * 1000
+                logger.error(
+                    "\n========================\nGEMINI REQUEST NOTICE\n========================\n"
+                    "Attempt: %d/%d\nLatency: %.2f ms\nNotice: %s\n"
+                    "========================",
+                    attempt + 1, max_retries, latency_ms, exc
+                )
+
+                if attempt < max_retries - 1:
+                    time.sleep(1.0 * (attempt + 1))
+
+        if disable_fallback and "429" not in str(last_exception):
+            logger.error("STRICT TESTING MODE: Gemini failed after %d retries. Raising Exception.", max_retries)
+            raise RuntimeError(f"Gemini API Failure: {last_exception}")
+
+        logger.warning("GeminiAIClient: Rate limited or unavailable. Using LocalAIService mentor fallback.")
+        return self._fallback.generate(task, context)
+
+
 # ─── Factory ───────────────────────────────────────────────────────────────────
 
 def get_ai_client() -> AIInferenceClient:
     """
-    Return the correct AIInferenceClient based on AI_SERVICE_MODE config.
-    Called once at startup; the result is passed to agents via dependency injection.
+    Return the correct AIInferenceClient based on configuration.
+    Priority:
+      1. GeminiAIClient if USE_GEMINI=True and GEMINI_API_KEY configured (or AI_SERVICE_MODE=gemini)
+      2. RemoteAIService if AI_SERVICE_MODE=remote
+      3. LocalAIService (default fallback)
     """
     settings = get_settings()
     mode = settings.ai_service_mode.lower()
 
+    if mode == "gemini" or (settings.use_gemini and settings.gemini_api_key):
+        if settings.gemini_api_key and not ("YOUR_GEMINI_API_KEY" in settings.gemini_api_key.upper()):
+            logger.info("AI client: GeminiAIClient (model: %s)", settings.gemini_model)
+            return GeminiAIClient(
+                api_key=settings.gemini_api_key,
+                model=settings.gemini_model,
+                timeout=settings.ai_service_timeout,
+            )
+        else:
+            logger.warning("AI_SERVICE_MODE=gemini/use_gemini=true but GEMINI_API_KEY is placeholder — using GeminiAIClient with LocalAIService fallback.")
+            return GeminiAIClient(
+                api_key=settings.gemini_api_key or "YOUR_GEMINI_API_KEY_HERE",
+                model=settings.gemini_model,
+                timeout=settings.ai_service_timeout,
+            )
+
     if mode == "remote":
         if not settings.ai_service_token:
-            logger.warning(
-                "AI_SERVICE_MODE=remote but AI_SERVICE_TOKEN is empty — "
-                "falling back to LocalAIService."
-            )
+            logger.warning("AI_SERVICE_MODE=remote but AI_SERVICE_TOKEN is empty — falling back to LocalAIService.")
             return LocalAIService()
-        logger.info(
-            "AI client: RemoteAIService → %s (timeout %.1fs)",
-            settings.ai_service_url,
-            settings.ai_service_timeout,
-        )
         return RemoteAIService(
             url=settings.ai_service_url,
             token=settings.ai_service_token,

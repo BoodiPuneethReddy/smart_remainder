@@ -1,40 +1,59 @@
 """
-agents/session_state.py — Per-user conversation session state
+agents/session_state.py — Per-user multi-turn conversation session state.
 
-Lightweight in-memory session store. No Redis, no database, no external deps.
-Future Scope: replace _sessions dict with Redis for persistence across restarts.
+Holds conversation history, subject context, previous constraints, and topic memory.
+Allows follow-up queries (e.g. "What about tomorrow?", "Make it 30 mins", "Explain chapter 2")
+to inherit previous intent, subject domain, and schedule parameters seamlessly.
 """
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List, Dict, Any
+
+
+@dataclass
+class ConversationTurn:
+    user_query: str
+    bot_response: str
+    intent: str
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
 class ConversationSession:
     """
-    Holds conversation context for a single user session.
-    Fields tracked per the Architecture Refinement specification:
-      - last_intent
-      - last_schedule
-      - last_applied_constraints
-      - last_imported_document
-      - last_completed_subject
-      - conversation_timestamp
+    Holds multi-turn conversation context for a single user session.
     """
     last_intent: Optional[str] = None
+    last_query: Optional[str] = None
+    last_subject: Optional[str] = None
+    last_time_limit: Optional[int] = None        # minutes
     last_schedule: Optional[dict] = None         # Most recent build_daily_plan() result
     last_constraints: Optional[dict] = None      # Most recent applied constraints
     last_imported_document_id: Optional[int] = None
     last_completed_subject: Optional[str] = None
+    history: List[ConversationTurn] = field(default_factory=list)
     conversation_started_at: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
 
+    def add_turn(self, query: str, response: str, intent: str) -> None:
+        self.history.append(ConversationTurn(user_query=query, bot_response=response, intent=intent))
+        # Retain last 15 turns
+        if len(self.history) > 15:
+            self.history = self.history[-15:]
+        self.last_query = query
+        self.last_intent = intent
+
+    def get_context_summary(self) -> str:
+        if not self.history:
+            return ""
+        recent = self.history[-3:]
+        return " | ".join(f"Q: {t.user_query} → A: {t.bot_response[:60]}..." for t in recent)
+
 
 # Global in-memory store: {user_id: ConversationSession}
-# Future: Replace with Redis-backed session store
-_sessions: dict[int, ConversationSession] = {}
+_sessions: Dict[int, ConversationSession] = {}
 
 
 def get_session(user_id: int) -> ConversationSession:

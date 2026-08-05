@@ -1,0 +1,114 @@
+﻿================================================================================
+                 RUNTIME PROOF REPORT ΓÇö 10 BENCHMARK PROMPTS
+================================================================================
+
+
+################################################################################
+PROMPT 1: "Hi"
+################################################################################
+
+1. EXACT HTTP REQUEST:
+POST http://127.0.0.1:8000/api/chat
+{
+  "question": "Hi"
+}
+HTTP ERROR: Expecting value: line 1 column 1 (char 0)
+
+################################################################################
+PROMPT 2: "What should I do now?"
+################################################################################
+
+1. EXACT HTTP REQUEST:
+POST http://127.0.0.1:8000/api/chat
+{
+  "question": "What should I do now?"
+}
+HTTP ERROR: Expecting value: line 1 column 1 (char 0)
+
+################################################################################
+PROMPT 3: "Explain normalization"
+################################################################################
+
+1. EXACT HTTP REQUEST:
+POST http://127.0.0.1:8000/api/chat
+{
+  "question": "Explain normalization"
+}
+HTTP ERROR: Expecting value: line 1 column 1 (char 0)
+
+################################################################################
+PROMPT 4: "Why?"
+################################################################################
+
+1. EXACT HTTP REQUEST:
+POST http://127.0.0.1:8000/api/chat
+{
+  "question": "Why?"
+}
+HTTP ERROR: Expecting value: line 1 column 1 (char 0)
+
+################################################################################
+PROMPT 5: "Give another example."
+################################################################################
+
+1. EXACT HTTP REQUEST:
+POST http://127.0.0.1:8000/api/chat
+{
+  "question": "Give another example."
+}
+HTTP ERROR: Expecting value: line 1 column 1 (char 0)
+
+################################################################################
+PROMPT 6: "I only have 2 hours today."
+################################################################################
+
+1. EXACT HTTP REQUEST:
+POST http://127.0.0.1:8000/api/chat
+{
+  "question": "I only have 2 hours today."
+}
+HTTP ERROR: Expecting value: line 1 column 1 (char 0)
+
+################################################################################
+PROMPT 7: "Create a one hour schedule."
+################################################################################
+
+1. EXACT HTTP REQUEST:
+POST http://127.0.0.1:8000/api/chat
+{
+  "question": "Create a one hour schedule."
+}
+HTTP ERROR: Expecting value: line 1 column 1 (char 0)
+
+################################################################################
+PROMPT 8: "Quiz me."
+################################################################################
+
+1. EXACT HTTP REQUEST:
+POST http://127.0.0.1:8000/api/chat
+{
+  "question": "Quiz me."
+}
+HTTP ERROR: Expecting value: line 1 column 1 (char 0)
+
+################################################################################
+PROMPT 9: "Continue."
+################################################################################
+
+1. EXACT HTTP REQUEST:
+POST http://127.0.0.1:8000/api/chat
+{
+  "question": "Continue."
+}
+HTTP ERROR: Expecting value: line 1 column 1 (char 0)
+
+################################################################################
+PROMPT 10: "Explain BCNF simply."
+################################################################################
+
+1. EXACT HTTP REQUEST:
+POST http://127.0.0.1:8000/api/chat
+{
+  "question": "Explain BCNF simply."
+}
+HTTP ERROR: Expecting value: line 1 column 1 (char 0)

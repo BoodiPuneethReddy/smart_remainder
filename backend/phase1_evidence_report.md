@@ -1,0 +1,447 @@
+================================================================================
+           PHASE 1 RUNTIME EVIDENCE REPORT — DYNAMIC EXECUTION GRAPH
+================================================================================
+
+
+################################################################################
+BENCHMARK PROMPT 1: "Hi"
+################################################################################
+
+1. EXACT INCOMING REQUEST PAYLOAD:
+{
+  "question": "Hi"
+}
+
+2. DYNAMIC RUNTIME EXECUTION GRAPH:
+--------------------------------------------------------------------------------
+User
+ ├── IntentAgent
+   └── ContextAgent
+     └── Gemini (Grounded LLM)
+--------------------------------------------------------------------------------
+
+3. EXECUTED AGENTS & DECLARED CONTRACTS:
+Total Active Agents Executed: 2
+  • IntentAgent -> Status: completed | Summary: Classified intent: 'greeting' | Reads: []
+  • ContextAgent -> Status: completed | Summary: Pruned conversation history to 0 turns for intent 'greeting' | Reads: ['conversation_history', 'last_subject']
+
+4. SKIPPED AGENTS & EVALUATED RATIONALE:
+Total Agents Skipped: 8
+  • RetrievalAgent [SKIPPED] -> Reason: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
+  • DocumentAgent [SKIPPED] -> Reason: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
+  • StrategyAgent [SKIPPED] -> Reason: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
+  • PlannerAgent [SKIPPED] -> Reason: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
+  • ReflectionAgent [SKIPPED] -> Reason: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
+  • ReminderAgent [SKIPPED] -> Reason: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
+  • AnalyticsAgent [SKIPPED] -> Reason: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
+  • TutorAgent [SKIPPED] -> Reason: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
+
+5. CONTEXTMINIMIZATION (ContextAgent Output):
+  • Intent: greeting
+  • History Context: Pruned to 10 turns max context.
+  • Knowledge Graph Nodes Attached: None (Pruned)
+
+6. RAW GEMINI SYSTEM PROMPT (Sample Construction):
+--------------------------------------------------------------------------------
+You are a personal academic AI study mentor with full memory of this student's progress.
+User Query: "Hi"
+Context: Intent = greeting | Subject Focus = DBMS
+
+MENTOR GUIDELINES:
+1. Be empathetic, intelligent, and direct. Talk like ChatGPT or an expert mentor.
+2. NEVER use template headers or list backend agent names (no 'DocumentAgent', 'StrategyAgent', etc.).
+3. If the user asks a follow-up ('Why?', 'Simplify that', 'Give another example', 'Continue'), reference the previous conversation naturally.
+4. If the prompt is ambiguous, ask a friendly clarifying question instead of guessing.
+
+
+Provide a helpful, precise, natural Markdown response.
+--------------------------------------------------------------------------------
+
+7. RAW GEMINI RESPONSE / RENDERED TEXT:
+--------------------------------------------------------------------------------
+Hello! Welcome back to your study session. 👋
+
+• **Current Task Completion:** 0%
+• **Predicted Exam Readiness:** 0%
+What would you like to accomplish today? Ask me to explain a concept, build a custom schedule, or review your weak topics.
+--------------------------------------------------------------------------------
+
+8. EXECUTION TIMINGS & LATENCY:
+  • Total Workflow Execution Latency: 11010.03 ms
+  • Active Agents Executed: 2
+
+9. EXACT FINAL API JSON RETURNED TO FRONTEND:
+{
+  "primary_intent": "greeting",
+  "active_agents_count": 2,
+  "skipped_agents_count": 8,
+  "execution_tree": [
+    "IntentAgent",
+    "ContextAgent"
+  ],
+  "answer_preview": "Hello! Welcome back to your study session. \ud83d\udc4b\n\n\u2022 **Current Task Completion:** 0%\n\u2022 **Predicted Exam Readiness:** 0%\nWhat ..."
+}
+
+################################################################################
+BENCHMARK PROMPT 2: "Explain normalization"
+################################################################################
+
+1. EXACT INCOMING REQUEST PAYLOAD:
+{
+  "question": "Explain normalization"
+}
+
+2. DYNAMIC RUNTIME EXECUTION GRAPH:
+--------------------------------------------------------------------------------
+User
+ ├── IntentAgent
+   ├── ContextAgent
+     ├── RetrievalAgent
+       ├── DocumentAgent
+         └── TutorAgent
+           └── Gemini (Grounded LLM)
+--------------------------------------------------------------------------------
+
+3. EXECUTED AGENTS & DECLARED CONTRACTS:
+Total Active Agents Executed: 5
+  • IntentAgent -> Status: completed | Summary: Classified intent: 'tutor' | Subject: DBMS | Reads: []
+  • ContextAgent -> Status: completed | Summary: Pruned conversation history to 1 turns for intent 'tutor' | Reads: ['conversation_history', 'last_subject']
+  • RetrievalAgent -> Status: completed | Summary: Semantic search query: 'DBMS' | Reads: ['active_knowledge_graph']
+  • DocumentAgent -> Status: completed | Summary: Retrieved 'Edge Case Academic Schedule Test' knowledge graph (1 concepts) | Reads: ['last_imported_document_id']
+  • TutorAgent -> Status: completed | Summary: Grounded Socratic explanation for 'DBMS' | Reads: ['retrieved_nodes', 'pruned_history']
+
+4. SKIPPED AGENTS & EVALUATED RATIONALE:
+Total Agents Skipped: 5
+  • StrategyAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • PlannerAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • ReflectionAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • ReminderAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • AnalyticsAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+
+5. CONTEXTMINIMIZATION (ContextAgent Output):
+  • Intent: tutor
+  • History Context: Pruned to 10 turns max context.
+  • Knowledge Graph Nodes Attached: Yes
+
+6. RAW GEMINI SYSTEM PROMPT (Sample Construction):
+--------------------------------------------------------------------------------
+You are a personal academic AI study mentor with full memory of this student's progress.
+User Query: "Explain normalization"
+Context: Intent = tutor | Subject Focus = DBMS
+
+MENTOR GUIDELINES:
+1. Be empathetic, intelligent, and direct. Talk like ChatGPT or an expert mentor.
+2. NEVER use template headers or list backend agent names (no 'DocumentAgent', 'StrategyAgent', etc.).
+3. If the user asks a follow-up ('Why?', 'Simplify that', 'Give another example', 'Continue'), reference the previous conversation naturally.
+4. If the prompt is ambiguous, ask a friendly clarifying question instead of guessing.
+
+
+Provide a helpful, precise, natural Markdown response.
+--------------------------------------------------------------------------------
+
+7. RAW GEMINI RESPONSE / RENDERED TEXT:
+--------------------------------------------------------------------------------
+### Introduction & Foundations
+Edge Case Academic Schedule Test
+Synthetic schedule designed to confuse parsers and AI agents. Correct systems should ask for clarification instead of inventing data.
+ItemnDetails
+DBMS Case StudynOld deadline: 25 Aug 202...
+
+--------------------------------------------------------------------------------
+
+8. EXECUTION TIMINGS & LATENCY:
+  • Total Workflow Execution Latency: 13271.90 ms
+  • Active Agents Executed: 5
+
+9. EXACT FINAL API JSON RETURNED TO FRONTEND:
+{
+  "primary_intent": "tutor",
+  "active_agents_count": 5,
+  "skipped_agents_count": 5,
+  "execution_tree": [
+    "IntentAgent",
+    "ContextAgent",
+    "RetrievalAgent",
+    "DocumentAgent",
+    "TutorAgent"
+  ],
+  "answer_preview": "### Introduction & Foundations\nEdge Case Academic Schedule Test\nSynthetic schedule designed to confuse parsers and AI ag..."
+}
+
+################################################################################
+BENCHMARK PROMPT 3: "Why?"
+################################################################################
+
+1. EXACT INCOMING REQUEST PAYLOAD:
+{
+  "question": "Why?"
+}
+
+2. DYNAMIC RUNTIME EXECUTION GRAPH:
+--------------------------------------------------------------------------------
+User
+ ├── IntentAgent
+   ├── ContextAgent
+     ├── RetrievalAgent
+       ├── DocumentAgent
+         └── TutorAgent
+           └── Gemini (Grounded LLM)
+--------------------------------------------------------------------------------
+
+3. EXECUTED AGENTS & DECLARED CONTRACTS:
+Total Active Agents Executed: 5
+  • IntentAgent -> Status: completed | Summary: Classified intent: 'tutor' | Reads: []
+  • ContextAgent -> Status: completed | Summary: Pruned conversation history to 2 turns for intent 'tutor' | Reads: ['conversation_history', 'last_subject']
+  • RetrievalAgent -> Status: completed | Summary: Semantic search query: 'General' | Reads: ['active_knowledge_graph']
+  • DocumentAgent -> Status: completed | Summary: Retrieved 'Edge Case Academic Schedule Test' knowledge graph (1 concepts) | Reads: ['last_imported_document_id']
+  • TutorAgent -> Status: completed | Summary: Grounded Socratic explanation for 'General' | Reads: ['retrieved_nodes', 'pruned_history']
+
+4. SKIPPED AGENTS & EVALUATED RATIONALE:
+Total Agents Skipped: 5
+  • StrategyAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • PlannerAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • ReflectionAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • ReminderAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • AnalyticsAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+
+5. CONTEXTMINIMIZATION (ContextAgent Output):
+  • Intent: tutor
+  • History Context: Pruned to 10 turns max context.
+  • Knowledge Graph Nodes Attached: Yes
+
+6. RAW GEMINI SYSTEM PROMPT (Sample Construction):
+--------------------------------------------------------------------------------
+You are a personal academic AI study mentor with full memory of this student's progress.
+User Query: "Why?"
+Context: Intent = tutor | Subject Focus = DBMS
+
+MENTOR GUIDELINES:
+1. Be empathetic, intelligent, and direct. Talk like ChatGPT or an expert mentor.
+2. NEVER use template headers or list backend agent names (no 'DocumentAgent', 'StrategyAgent', etc.).
+3. If the user asks a follow-up ('Why?', 'Simplify that', 'Give another example', 'Continue'), reference the previous conversation naturally.
+4. If the prompt is ambiguous, ask a friendly clarifying question instead of guessing.
+
+
+Provide a helpful, precise, natural Markdown response.
+--------------------------------------------------------------------------------
+
+7. RAW GEMINI RESPONSE / RENDERED TEXT:
+--------------------------------------------------------------------------------
+### Introduction & Foundations
+Edge Case Academic Schedule Test
+Synthetic schedule designed to confuse parsers and AI agents. Correct systems should ask for clarification instead of inventing data.
+ItemnDetails
+DBMS Case StudynOld deadline: 25 Aug 202...
+
+--------------------------------------------------------------------------------
+
+8. EXECUTION TIMINGS & LATENCY:
+  • Total Workflow Execution Latency: 15679.04 ms
+  • Active Agents Executed: 5
+
+9. EXACT FINAL API JSON RETURNED TO FRONTEND:
+{
+  "primary_intent": "tutor",
+  "active_agents_count": 5,
+  "skipped_agents_count": 5,
+  "execution_tree": [
+    "IntentAgent",
+    "ContextAgent",
+    "RetrievalAgent",
+    "DocumentAgent",
+    "TutorAgent"
+  ],
+  "answer_preview": "### Introduction & Foundations\nEdge Case Academic Schedule Test\nSynthetic schedule designed to confuse parsers and AI ag..."
+}
+
+################################################################################
+BENCHMARK PROMPT 4: "Give another example"
+################################################################################
+
+1. EXACT INCOMING REQUEST PAYLOAD:
+{
+  "question": "Give another example"
+}
+
+2. DYNAMIC RUNTIME EXECUTION GRAPH:
+--------------------------------------------------------------------------------
+User
+ ├── IntentAgent
+   ├── ContextAgent
+     ├── RetrievalAgent
+       ├── DocumentAgent
+         └── TutorAgent
+           └── Gemini (Grounded LLM)
+--------------------------------------------------------------------------------
+
+3. EXECUTED AGENTS & DECLARED CONTRACTS:
+Total Active Agents Executed: 5
+  • IntentAgent -> Status: completed | Summary: Classified intent: 'tutor' | Reads: []
+  • ContextAgent -> Status: completed | Summary: Pruned conversation history to 3 turns for intent 'tutor' | Reads: ['conversation_history', 'last_subject']
+  • RetrievalAgent -> Status: completed | Summary: Semantic search query: 'General' | Reads: ['active_knowledge_graph']
+  • DocumentAgent -> Status: completed | Summary: Retrieved 'Edge Case Academic Schedule Test' knowledge graph (1 concepts) | Reads: ['last_imported_document_id']
+  • TutorAgent -> Status: completed | Summary: Grounded Socratic explanation for 'General' | Reads: ['retrieved_nodes', 'pruned_history']
+
+4. SKIPPED AGENTS & EVALUATED RATIONALE:
+Total Agents Skipped: 5
+  • StrategyAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • PlannerAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • ReflectionAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • ReminderAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • AnalyticsAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+
+5. CONTEXTMINIMIZATION (ContextAgent Output):
+  • Intent: tutor
+  • History Context: Pruned to 10 turns max context.
+  • Knowledge Graph Nodes Attached: Yes
+
+6. RAW GEMINI SYSTEM PROMPT (Sample Construction):
+--------------------------------------------------------------------------------
+You are a personal academic AI study mentor with full memory of this student's progress.
+User Query: "Give another example"
+Context: Intent = tutor | Subject Focus = DBMS
+
+MENTOR GUIDELINES:
+1. Be empathetic, intelligent, and direct. Talk like ChatGPT or an expert mentor.
+2. NEVER use template headers or list backend agent names (no 'DocumentAgent', 'StrategyAgent', etc.).
+3. If the user asks a follow-up ('Why?', 'Simplify that', 'Give another example', 'Continue'), reference the previous conversation naturally.
+4. If the prompt is ambiguous, ask a friendly clarifying question instead of guessing.
+
+
+Provide a helpful, precise, natural Markdown response.
+--------------------------------------------------------------------------------
+
+7. RAW GEMINI RESPONSE / RENDERED TEXT:
+--------------------------------------------------------------------------------
+### Introduction & Foundations
+Edge Case Academic Schedule Test
+Synthetic schedule designed to confuse parsers and AI agents. Correct systems should ask for clarification instead of inventing data.
+ItemnDetails
+DBMS Case StudynOld deadline: 25 Aug 202...
+
+--------------------------------------------------------------------------------
+
+8. EXECUTION TIMINGS & LATENCY:
+  • Total Workflow Execution Latency: 12514.47 ms
+  • Active Agents Executed: 5
+
+9. EXACT FINAL API JSON RETURNED TO FRONTEND:
+{
+  "primary_intent": "tutor",
+  "active_agents_count": 5,
+  "skipped_agents_count": 5,
+  "execution_tree": [
+    "IntentAgent",
+    "ContextAgent",
+    "RetrievalAgent",
+    "DocumentAgent",
+    "TutorAgent"
+  ],
+  "answer_preview": "### Introduction & Foundations\nEdge Case Academic Schedule Test\nSynthetic schedule designed to confuse parsers and AI ag..."
+}
+
+################################################################################
+BENCHMARK PROMPT 5: "I only have 2 hours today"
+################################################################################
+
+1. EXACT INCOMING REQUEST PAYLOAD:
+{
+  "question": "I only have 2 hours today"
+}
+EXECUTION ERROR: PRIORITY_CALCULATION
+
+################################################################################
+BENCHMARK PROMPT 6: "Create a one hour study plan"
+################################################################################
+
+1. EXACT INCOMING REQUEST PAYLOAD:
+{
+  "question": "Create a one hour study plan"
+}
+EXECUTION ERROR: PRIORITY_CALCULATION
+
+################################################################################
+BENCHMARK PROMPT 7: "Quiz me"
+################################################################################
+
+1. EXACT INCOMING REQUEST PAYLOAD:
+{
+  "question": "Quiz me"
+}
+
+2. DYNAMIC RUNTIME EXECUTION GRAPH:
+--------------------------------------------------------------------------------
+User
+ ├── IntentAgent
+   ├── ContextAgent
+     ├── RetrievalAgent
+       ├── DocumentAgent
+         └── TutorAgent
+           └── Gemini (Grounded LLM)
+--------------------------------------------------------------------------------
+
+3. EXECUTED AGENTS & DECLARED CONTRACTS:
+Total Active Agents Executed: 5
+  • IntentAgent -> Status: completed | Summary: Classified intent: 'tutor' | Reads: []
+  • ContextAgent -> Status: completed | Summary: Pruned conversation history to 3 turns for intent 'tutor' | Reads: ['conversation_history', 'last_subject']
+  • RetrievalAgent -> Status: completed | Summary: Semantic search query: 'General' | Reads: ['active_knowledge_graph']
+  • DocumentAgent -> Status: completed | Summary: Retrieved 'Edge Case Academic Schedule Test' knowledge graph (1 concepts) | Reads: ['last_imported_document_id']
+  • TutorAgent -> Status: completed | Summary: Grounded Socratic explanation for 'General' | Reads: ['retrieved_nodes', 'pruned_history']
+
+4. SKIPPED AGENTS & EVALUATED RATIONALE:
+Total Agents Skipped: 5
+  • StrategyAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • PlannerAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • ReflectionAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • ReminderAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • AnalyticsAgent [SKIPPED] -> Reason: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+
+5. CONTEXTMINIMIZATION (ContextAgent Output):
+  • Intent: tutor
+  • History Context: Pruned to 10 turns max context.
+  • Knowledge Graph Nodes Attached: Yes
+
+6. RAW GEMINI SYSTEM PROMPT (Sample Construction):
+--------------------------------------------------------------------------------
+You are a personal academic AI study mentor with full memory of this student's progress.
+User Query: "Quiz me"
+Context: Intent = tutor | Subject Focus = DBMS
+
+MENTOR GUIDELINES:
+1. Be empathetic, intelligent, and direct. Talk like ChatGPT or an expert mentor.
+2. NEVER use template headers or list backend agent names (no 'DocumentAgent', 'StrategyAgent', etc.).
+3. If the user asks a follow-up ('Why?', 'Simplify that', 'Give another example', 'Continue'), reference the previous conversation naturally.
+4. If the prompt is ambiguous, ask a friendly clarifying question instead of guessing.
+
+
+Provide a helpful, precise, natural Markdown response.
+--------------------------------------------------------------------------------
+
+7. RAW GEMINI RESPONSE / RENDERED TEXT:
+--------------------------------------------------------------------------------
+### Introduction & Foundations
+Edge Case Academic Schedule Test
+Synthetic schedule designed to confuse parsers and AI agents. Correct systems should ask for clarification instead of inventing data.
+ItemnDetails
+DBMS Case StudynOld deadline: 25 Aug 202...
+
+--------------------------------------------------------------------------------
+
+8. EXECUTION TIMINGS & LATENCY:
+  • Total Workflow Execution Latency: 14532.37 ms
+  • Active Agents Executed: 5
+
+9. EXACT FINAL API JSON RETURNED TO FRONTEND:
+{
+  "primary_intent": "tutor",
+  "active_agents_count": 5,
+  "skipped_agents_count": 5,
+  "execution_tree": [
+    "IntentAgent",
+    "ContextAgent",
+    "RetrievalAgent",
+    "DocumentAgent",
+    "TutorAgent"
+  ],
+  "answer_preview": "### Introduction & Foundations\nEdge Case Academic Schedule Test\nSynthetic schedule designed to confuse parsers and AI ag..."
+}

@@ -15,19 +15,9 @@ from app.services.ai_client import AIInferenceClient, get_ai_client
 
 _bearer = HTTPBearer()
 
-# Singleton AI client with thread-safe lock
-_ai_client_instance: AIInferenceClient | None = None
-_client_lock = threading.Lock()
-
-
 def get_ai_client_dep() -> AIInferenceClient:
-    """Dependency that returns the thread-safe singleton AI client."""
-    global _ai_client_instance
-    if _ai_client_instance is None:
-        with _client_lock:
-            if _ai_client_instance is None:
-                _ai_client_instance = get_ai_client()
-    return _ai_client_instance
+    """Dependency that returns the active AI client dynamically based on current configuration."""
+    return get_ai_client()
 
 
 def get_current_user(
