@@ -792,22 +792,19 @@ def create_linear_session(
     # Step 4: Isolate Session & Purge Legacy Document Memory
     clear_session(current_user.id)
 
-    first_topic = topics[0] if topics else f"Complete Study ({doc.original_filename})"
-
-    # Step 5: Create & Persist LearningSession object
+    # Step 5: SessionBuilder & CurriculumBuilder (Backend selects concepts, NO Gemini call!)
     try:
-        session = TutorService.initialize_session(
+        from app.services.session_builder import SessionBuilder
+        session, curriculum = SessionBuilder.create_learning_session(
             db=db,
-            ai_client=ai_client,
             user_id=current_user.id,
-            subject=subj,
-            topic=first_topic,
-            difficulty_level=1,
-            assessment_type=req.assessment_type,
-            target_goal=req.goal,
-            teacher_personality=req.personality,
+            document_id=doc.id,
+            personality=req.personality,
+            goal=req.goal,
             learning_mode=req.learning_mode,
-            document_id=req.document_id
+            assessment_type=req.assessment_type,
+            difficulty=req.difficulty,
+            session_length=req.session_length
         )
     except Exception as db_err:
         raise HTTPException(

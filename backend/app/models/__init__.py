@@ -19,11 +19,12 @@ from app.models.tutor_bookmark import TutorBookmark
 from app.models.mistake_journal import MistakeJournal
 from app.models.study_note import StudyNote
 from app.models.telemetry_log import SwarmTelemetryLog
+from app.models.knowledge_graph import KnowledgeGraph, ConceptNode
 
 __all__ = [
     "User", "Task", "StudySession", "Notification", "Recommendation",
     "College", "CollegeAlias", "OTPCode", "ImportedDocument",
     "LearningProfile", "QuestionCitation", "TutorSession", 
     "TutorMessage", "TutorMessageChunk", "LearningObjective", "TutorBookmark",
-    "MistakeJournal", "StudyNote", "SwarmTelemetryLog",
+    "MistakeJournal", "StudyNote", "SwarmTelemetryLog", "KnowledgeGraph", "ConceptNode",
 ]
