@@ -1,0 +1,124 @@
+================================================================================
+  PHASE 4 GROUNDED GEMINI REASONING ENGINE & TELEMETRY REPORT — 12 SCENARIOS
+================================================================================
+
+
+################################################################################
+SCENARIO 01/12: "Hi"
+################################################################################
+
+1. INCOMING REQUEST PAYLOAD:
+{
+  "user_id": 1,
+  "question": "Hi"
+}
+
+2. DYNAMIC RUNTIME EXECUTION GRAPH:
+--------------------------------------------------------------------------------
+IntentAgent -> ContextAgent
+--------------------------------------------------------------------------------
+
+3. SHARED MEMORY EVOLUTION:
+  • Memory BEFORE: {"last_intent": null, "last_subject": null, "current_topic": null, "current_goal": "Mastery", "mastery_level": "Intermediate", "history_turn_count": 0}
+  • Memory AFTER:  {"last_intent": "greeting", "last_subject": null, "current_topic": null, "current_goal": "Mastery", "mastery_level": "Intermediate", "history_turn_count": 1, "latest_query": "Hi"}
+
+4. RETRIEVED KNOWLEDGE NODES & CITATION METADATA:
+  • No active document knowledge nodes retrieved (Conversational / Scheduling Intent).
+
+5. AGENT STEP TELEMETRY (DYNAMIC LATENCY & MEMORY TRACE):
+  • [IntentAgent] Status: COMPLETED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+    Summary: Classified intent: 'greeting'
+  • [RetrievalAgent] Status: SKIPPED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+    Summary: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
+  • [DocumentAgent] Status: SKIPPED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+    Summary: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
+  • [StrategyAgent] Status: SKIPPED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+    Summary: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
+  • [PlannerAgent] Status: SKIPPED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+    Summary: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
+  • [ReflectionAgent] Status: SKIPPED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+    Summary: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
+  • [ReminderAgent] Status: SKIPPED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+    Summary: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
+  • [AnalyticsAgent] Status: SKIPPED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+    Summary: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
+  • [TutorAgent] Status: SKIPPED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+    Summary: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
+  • [ContextAgent] Status: COMPLETED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+    Summary: Pruned conversation history to 0 turns for intent 'greeting'
+
+6. GROUNDING TELEMETRY REPORT (FACTUAL ORIGINS):
+{
+  "knowledge_nodes_used": [],
+  "planner_fields_used": [],
+  "analytics_used": [
+    "completion_rate",
+    "burnout_risk_level",
+    "predicted_exam_readiness"
+  ],
+  "memory_used": [
+    "last_subject",
+    "current_topic",
+    "mastery_level",
+    "history"
+  ]
+}
+
+7. DYNAMIC CONFIDENCE ESTIMATION: 0.69 (Calculated from Retrieval Quality & Plan Fit)
+   MEASURED WORKFLOW LATENCY: 10223.08 ms
+
+8. EXACT PROMPT SENT TO GEMINI (MINIMIZED GROUNDED STRUCTURE):
+--------------------------------------------------------------------------------
+================================================================================
+SYSTEM ROLE:
+You are a personal academic AI study mentor with perfect memory of this student's progress.
+Talk like ChatGPT or an expert professor in office hours: direct, empathetic, intelligent, and natural.
+
+GROUNDING DIRECTIVES (CRITICAL):
+1. Everything you state MUST originate strictly from the RETRIEVED KNOWLEDGE NODES, PLANNER OUTPUT, or LEARNING PROFILE below.
+2. Do NOT fabricate facts, invent unprovided exam dates, or guess missing concepts.
+3. Do NOT use template headers or mention internal agent names ('PlannerAgent', 'ReflectionAgent', 'DocumentAgent').
+4. Adapt your explanation depth based on the student's mastery level (Intermediate (40-75%)).
+================================================================================
+
+CURRENT GOAL & CONTEXT:
+  • User Query: "Hi"
+  • Intent: greeting | Subject Focus: DBMS
+  • Student Mastery Tier: Intermediate (40-75%) (65.0%) | Retention: 100.0%
+
+RECENT CONVERSATION HISTORY (Pruned):
+CONVERSATION HISTORY (Previous turns with this student):
+Student: Hi
+
+
+ANALYTICS SUMMARY:
+{
+  "user_id": 1,
+  "completion_rate": 0.0,
+  "weekly_study_hours": 0.0,
+  "burnout_risk_level": "low",
+  "predicted_exam_readiness": 0.0,
+  "weakest_subject": "Database Management Systems",
+  "insights": [
+    "Balanced workload \u2014 healthy study pace detected.",
+    "Overall completion rate is 0.0%."
+  ]
+}
+
+TASK:
+Generate a helpful, grounded Markdown response directly addressing the user query.
+--------------------------------------------------------------------------------
+
+9. RAW GEMINI RESPONSE & RENDERED UI OUTPUT:
+--------------------------------------------------------------------------------
+Hello! Welcome back to your study session. 👋
+
+• **Current Task Completion:** 0%
+• **Predicted Exam Readiness:** 0%
+What would you like to accomplish today? Ask me to explain a concept, build a custom schedule, or review your weak topics.
+--------------------------------------------------------------------------------
+
+
+################################################################################
+SCENARIO 02/12: "Explain normalization"
+################################################################################

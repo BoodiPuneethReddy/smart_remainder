@@ -1,8 +1,59 @@
 ================================================================================
       PHASE 3 DETAILED RUNTIME EVIDENCE — PLANNER & REFLECTION FEEDBACK LOOP
-================================================================================
+================================================================ algorithm
 
 
 ################################################################################
 BENCHMARK PROMPT 1: "I only have 2 hours today"
 ################################################################################
+
+1. DYNAMIC RUNTIME EXECUTION GRAPH:
+--------------------------------------------------------------------------------
+IntentAgent -> ContextAgent -> StrategyAgent -> PlannerAgent -> ReflectionAgent -> ReminderAgent -> AnalyticsAgent
+--------------------------------------------------------------------------------
+
+2. AGENT STEP LOGS & REFLECTION FEEDBACK TRAIL:
+  • [PlannerAgent] (COMPLETED) ✅: Scheduled 2 sessions | Total: 120m / 120m budget | DB tasks: 1 | Graph items: 1
+  • [ReflectionAgent] (COMPLETED) ✅: Schedule verified: Feasible and strictly within safe budget limit (120m / 120m).
+
+3. FINAL REVISED PLAN (BUDGET CAP: 120m, ALLOCATED: 120m):
+  - [Database Management Systems] DBMS Case Study: 60 mins (Priority: 53.5)
+  - [Edge Case Academic Schedule Test] Introduction & Foundations: 60 mins (Priority: 75.0)
+
+4. FINAL NATURAL LANGUAGE PRESENTATION:
+--------------------------------------------------------------------------------
+Here is your recommended study plan for **2h 0m**:
+
+1. **DBMS Case Study** (Database Management Systems) — `1h 0m`
+   _Urgent: Database Management Systems assignment in 2 day(s) — one of your most important tasks._
+2. **Introduction & Foundations** (Edge Case Academic Schedule Test) — `1h 0m`
+   _Fo...
+--------------------------------------------------------------------------------
+
+################################################################################
+BENCHMARK PROMPT 2: "Create a one hour study plan"
+################################################################################
+
+1. DYNAMIC RUNTIME EXECUTION GRAPH:
+--------------------------------------------------------------------------------
+IntentAgent -> ContextAgent -> StrategyAgent -> PlannerAgent -> ReflectionAgent -> ReminderAgent -> AnalyticsAgent
+--------------------------------------------------------------------------------
+
+2. AGENT STEP LOGS & REFLECTION FEEDBACK TRAIL:
+  • [PlannerAgent] (COMPLETED) ✅: Scheduled 2 sessions | Total: 60m / 60m budget | DB tasks: 1 | Graph items: 1
+  • [ReflectionAgent] (COMPLETED) ✅: Schedule verified: Feasible and strictly within safe budget limit (60m / 60m).
+
+3. FINAL REVISED PLAN (BUDGET CAP: 60m, ALLOCATED: 60m):
+  - [Database Management Systems] DBMS Case Study: 30 mins (Priority: 53.5)
+  - [Edge Case Academic Schedule Test] Introduction & Foundations: 30 mins (Priority: 75.0)
+
+4. FINAL NATURAL LANGUAGE PRESENTATION:
+--------------------------------------------------------------------------------
+Here is your recommended study plan for **1h 0m**:
+
+1. **DBMS Case Study** (Database Management Systems) — `30m`
+   _Urgent: Database Management Systems assignment in 2 day(s) — one of your most important tasks._
+2. **Introduction & Foundations** (Edge Case Academic Schedule Test) — `30m`
+   _Founda...
+--------------------------------------------------------------------------------
+----

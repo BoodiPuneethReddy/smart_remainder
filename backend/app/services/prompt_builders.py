@@ -1,11 +1,13 @@
 """
-services/prompt_builders.py — Personal Academic Mentor Prompt Architecture
+services/prompt_builders.py — Personal Academic Mentor Grounded Prompt Architecture
 
-Dedicated prompt builders for Gemini API & Multi-Agent Swarm.
-Engineered to deliver natural, human, ChatGPT-like academic mentorship
-without exposing backend machinery or static template headers.
+Dedicated prompt builders for Gemini AI Client & Multi-Agent Swarm.
+Enforces strict grounding: Gemini acts as the reasoning engine and MUST only
+use facts from retrieved knowledge graph nodes, planner outputs, reflection audits,
+learning profiles, analytics, and pruned conversation memory.
 """
 
+import json
 from typing import Dict, Any, List
 
 
@@ -14,25 +16,21 @@ def _format_conversation_history(history: List[Dict[str, str]]) -> str:
     if not history:
         return ""
     lines = ["CONVERSATION HISTORY (Previous turns with this student):"]
-    for turn in history[-6:]:  # Last 6 turns for concise context
-        sender = "Student" if turn.get("role") == "user" else "Mentor"
-        content = turn.get("content", "").strip()
+    for turn in history[-6:]:
+        sender = "Student" if turn.get("role") == "user" or turn.get("user_query") else "Mentor"
+        content = turn.get("content", turn.get("user_query", "")).strip()
         lines.append(f"{sender}: {content}")
     lines.append("")
     return "\n".join(lines)
 
 
 def build_tutor_prompt(context: Dict[str, Any]) -> str:
-    """
-    Builds a grounded prompt for Socratic tutoring and natural explanation.
-    Acts as an empathetic professor who adapts tone based on student mastery & history.
-    """
-    personality = context.get("personality", "Socratic Mentor")
-    topic = context.get("topic", "Subject Concepts")
-    subject = context.get("subject", "Academic Focus")
+    """Builds Socratic tutoring prompt for concepts."""
+    topic = context.get("topic", context.get("user_query", "Subject Concepts"))
+    subject = context.get("subject", "DBMS")
     mastery = context.get("mastery", 50.0)
     retention = context.get("retention", 100.0)
-    user_answer = context.get("user_answer", "")
+    user_answer = context.get("user_answer", context.get("user_query", ""))
     knowledge_graph = context.get("knowledge_graph", {})
     mistake_history = context.get("mistakes", [])
     history = context.get("history", [])
@@ -68,7 +66,7 @@ def build_tutor_prompt(context: Dict[str, Any]) -> str:
 
     if user_answer:
         prompt_lines.append(f"STUDENT QUESTION / RESPONSE: \"{user_answer}\"")
-        prompt_lines.append("Provide a clear, engaging, grounded explanation or feedback directly answering their question.")
+        prompt_lines.append(f"Provide a clear, engaging, grounded explanation of {topic} for {subject}.")
     else:
         prompt_lines.append(f"Provide a natural, engaging explanation of {topic} tailored to a student at {mastery:.0f}% mastery.")
 
@@ -76,117 +74,115 @@ def build_tutor_prompt(context: Dict[str, Any]) -> str:
 
 
 def build_planner_explanation_prompt(context: Dict[str, Any]) -> str:
-    """
-    Builds a natural mentor rationale for prioritized study schedules.
-    """
-    tasks = context.get("tasks", [])
+    """Builds a natural mentor rationale for prioritized study schedules."""
     available_minutes = context.get("available_minutes", 240)
     user_time_str = f"{available_minutes // 60}h {available_minutes % 60}m" if available_minutes >= 60 else f"{available_minutes}m"
-    history = context.get("history", [])
+    tasks = context.get("tasks", [])
 
     prompt_lines = [
         "You are a personal academic study coach helping a student structure their study session.",
-        f"Available Study Time Today: {user_time_str}.",
+        f"Available Study Time Today: {user_time_str} ({available_minutes}m).",
         "",
-        "MENTOR GUIDELINES:",
-        "1. Write conversationally, as if speaking directly to the student.",
-        "2. Explain WHY you recommend this breakdown (e.g. upcoming deadlines, low mastery, exam weight).",
-        "3. NEVER mention internal agent names like 'PlannerAgent' or 'ReflectionAgent'.",
-        "",
+        "RECOMMENDED SESSIONS:",
     ]
-
-    history_str = _format_conversation_history(history)
-    if history_str:
-        prompt_lines.append(history_str)
-
-    prompt_lines.append("RECOMMENDED STUDY SCHEDULE:")
-    for idx, t in enumerate(tasks, 1):
-        prompt_lines.append(
-            f"{idx}. {t.get('title')} ({t.get('subject')}) — {t.get('recommended_minutes')}m "
-            f"(Priority: {t.get('priority_score', 50):.0f}/100, Due in {t.get('days_remaining', 7)} days)"
-        )
-
-    prompt_lines.append("")
-    prompt_lines.append("Present this schedule in a warm, encouraging, and actionable mentor tone.")
+    for t in tasks:
+        p_score = t.get('priority_score', 50)
+        prompt_lines.append(f"  - {t.get('subject')} '{t.get('title')}': {t.get('recommended_minutes')}m (Priority: {int(p_score)}/100)")
 
     return "\n".join(prompt_lines)
 
 
 def build_reflection_prompt(context: Dict[str, Any]) -> str:
-    """
-    Builds prompt for ReflectionAgent workload auditing (JSON format).
-    """
-    available_minutes = context.get("available_minutes", 240)
-    allocated_minutes = context.get("allocated_minutes", 0)
-    items = context.get("items", [])
-
-    prompt_lines = [
-        "You are the Reflection & Workload Auditor Agent.",
-        f"Time Budget: {available_minutes}m | Total Allocated: {allocated_minutes}m | Total Sessions: {len(items)}",
-        "",
-        "Audit the schedule for overload risk and return JSON format:",
-        '{"is_valid": true/false, "replan_required": true/false, "confidence_score": 0.95, "warnings": [...], "recommendations": [...]}',
-    ]
-
-    return "\n".join(prompt_lines)
+    """Builds a plan feasibility audit prompt."""
+    avail = context.get("available_minutes", 60)
+    alloc = context.get("allocated_minutes", 90)
+    return f"Audit plan feasibility: {alloc}m allocated vs {avail}m available budget."
 
 
 def build_chat_recommendation_prompt(context: Dict[str, Any]) -> str:
-    """
-    Builds prompt for general chat queries, greetings, analytics summaries, and follow-ups.
-    """
-    query = context.get("user_query", "")
-    intent = context.get("intent", "general")
-    subject = context.get("subject", "General")
-    learning_ctx = context.get("learning_ctx", {})
-    knowledge_graph = context.get("knowledge_graph")
-    analytics = context.get("analytics")
-    history = context.get("history", [])
-
-    prompt_lines = [
-        "You are a personal academic AI study mentor with full memory of this student's progress.",
-        f"User Query: \"{query}\"",
-        f"Context: Intent = {intent} | Subject Focus = {subject}",
-        "",
-        "MENTOR GUIDELINES:",
-        "1. Be empathetic, intelligent, and direct. Talk like ChatGPT or an expert mentor.",
-        "2. NEVER use template headers or list backend agent names (no 'DocumentAgent', 'StrategyAgent', etc.).",
-        "3. If the user asks a follow-up ('Why?', 'Simplify that', 'Give another example', 'Continue'), reference the previous conversation naturally.",
-        "4. If the prompt is ambiguous, ask a friendly clarifying question instead of guessing.",
-        "",
-    ]
-
-    history_str = _format_conversation_history(history)
-    if history_str:
-        prompt_lines.append(history_str)
-
-    if knowledge_graph and knowledge_graph.get("concepts"):
-        prompt_lines.append(f"STUDENT'S UPLOADED MATERIAL ({knowledge_graph.get('subject')}):")
-        for node in knowledge_graph.get("concepts", [])[:4]:
-            prompt_lines.append(f"  - [{node.get('title')}]: {node.get('summary')}")
-        prompt_lines.append("")
-
-    if analytics:
-        prompt_lines.append(f"STUDENT PROGRESS: {analytics.get('completion_rate', 0):.0f}% tasks completed, Burnout Risk: {analytics.get('burnout_risk_level', 'low')}.")
-
-    if learning_ctx.get("has_learning_data"):
-        weak = learning_ctx.get("weak_topics", [])
-        if weak:
-            prompt_lines.append(f"WEAK TOPICS: {', '.join(w['topic'] for w in weak[:3])}.")
-
-    prompt_lines.append("")
-    prompt_lines.append("Provide a helpful, precise, natural Markdown response.")
-
-    return "\n".join(prompt_lines)
+    """Builds general chat recommendation prompt."""
+    return build_grounded_mentor_prompt(context)
 
 
 def build_document_analysis_prompt(text: str, filename: str) -> str:
+    """Builds document extraction prompt."""
+    return f"Analyze document text from '{filename}': {text[:300]}"
+
+
+def build_grounded_mentor_prompt(context: Dict[str, Any]) -> str:
     """
-    Builds prompt for DocumentAgent knowledge graph extraction from PDF text.
+    Constructs a minimized, strictly grounded prompt for Gemini reasoning engine.
     """
-    return (
-        f"You are an expert Academic Knowledge Graph Parser.\n"
-        f"Document Title: {filename}\n"
-        f"Extract key topics, definitions, prerequisite dependencies, code snippets, and formulas into JSON.\n\n"
-        f"EXTRACTED TEXT (First 3000 chars):\n{text[:3000]}"
-    )
+    user_query = context.get("user_query", "")
+    intent = context.get("intent", "general")
+    subject = context.get("subject", "General Academic Study")
+    history = context.get("history", [])
+    learning_ctx = context.get("learning_ctx", {})
+    retrieved_nodes = context.get("retrieved_nodes", [])
+    plan = context.get("plan", {})
+    reflection = context.get("reflection", {})
+    analytics = context.get("analytics", {})
+
+    mastery_pct = learning_ctx.get("mastery_score", 65.0)
+    mastery_tier = "Beginner (<40%)" if mastery_pct < 40 else ("Intermediate (40-75%)" if mastery_pct <= 75 else "Advanced (>75%)")
+
+    prompt_sections = [
+        "================================================================================",
+        "SYSTEM ROLE:",
+        "You are a personal academic AI study mentor with perfect memory of this student's progress.",
+        "Talk like ChatGPT or an expert professor in office hours: direct, empathetic, intelligent, and natural.",
+        "",
+        "GROUNDING DIRECTIVES (CRITICAL):",
+        "1. Everything you state MUST originate strictly from the RETRIEVED KNOWLEDGE NODES, PLANNER OUTPUT, or LEARNING PROFILE below.",
+        "2. Do NOT fabricate facts, invent unprovided exam dates, or guess missing concepts.",
+        "3. Do NOT use template headers or mention internal agent names ('PlannerAgent', 'ReflectionAgent', 'DocumentAgent').",
+        "4. Adapt your explanation depth based on the student's mastery level (" + mastery_tier + ").",
+        "================================================================================",
+        "",
+        "CURRENT GOAL & CONTEXT:",
+        f"  • User Query: \"{user_query}\"",
+        f"  • Intent: {intent} | Subject Focus: {subject}",
+        f"  • Student Mastery Tier: {mastery_tier} ({mastery_pct:.1f}%) | Retention: {learning_ctx.get('retention_score', 100.0):.1f}%",
+        "",
+        "RECENT CONVERSATION HISTORY (Pruned):",
+        _format_conversation_history(history),
+        "",
+    ]
+
+    if retrieved_nodes:
+        prompt_sections.append("RETRIEVED KNOWLEDGE GRAPH NODES (Top-K Grounded Source):")
+        for n in retrieved_nodes[:3]:
+            prompt_sections.append(json.dumps({
+                "citation_node_id": n.get("id"),
+                "title": n.get("title"),
+                "similarity_score": n.get("similarity_score"),
+                "summary": n.get("summary"),
+                "difficulty": n.get("difficulty"),
+                "definitions": n.get("definitions"),
+                "examples": n.get("examples"),
+                "formulas": n.get("formulas"),
+                "code_snippets": n.get("code_snippets"),
+                "parents_prerequisites": n.get("parents"),
+                "children": n.get("children")
+            }, indent=2))
+        prompt_sections.append("")
+
+    if plan:
+        prompt_sections.append("PLANNER OUTPUT (Deterministic Schedule & Score Calculations):")
+        prompt_sections.append(json.dumps(plan, indent=2))
+        prompt_sections.append("")
+
+    if reflection:
+        prompt_sections.append("REFLECTION AUDIT (Feasibility & Quality Verification):")
+        prompt_sections.append(json.dumps(reflection, indent=2))
+        prompt_sections.append("")
+
+    if analytics:
+        prompt_sections.append("ANALYTICS SUMMARY:")
+        prompt_sections.append(json.dumps(analytics, indent=2))
+        prompt_sections.append("")
+
+    prompt_sections.append("TASK:")
+    prompt_sections.append("Generate a helpful, grounded Markdown response directly addressing the user query.")
+
+    return "\n".join(prompt_sections)

@@ -1,9 +1,11 @@
 """
-agents/session_state.py — Per-user multi-turn conversation session state.
+agents/session_state.py — Stateful Conversation Memory & Session Store.
 
-Holds conversation history, subject context, previous constraints, and topic memory.
-Allows follow-up queries (e.g. "What about tomorrow?", "Make it 30 mins", "Explain chapter 2")
-to inherit previous intent, subject domain, and schedule parameters seamlessly.
+Holds persistent academic state across multi-turn sessions:
+  - Current subject, topic, chapter, document
+  - Current goal, strategy, weak concept, and schedule
+  - Mastery level (Beginner, Intermediate, Advanced)
+  - Full turn history for multi-turn reasoning ("Why?", "Make it 30 mins", "Quiz me", "Make it harder")
 """
 
 from dataclasses import dataclass, field
@@ -22,7 +24,7 @@ class ConversationTurn:
 @dataclass
 class ConversationSession:
     """
-    Holds multi-turn conversation context for a single user session.
+    Holds persistent multi-turn conversation state for a single user session.
     """
     last_intent: Optional[str] = None
     last_query: Optional[str] = None
@@ -32,6 +34,16 @@ class ConversationSession:
     last_constraints: Optional[dict] = None      # Most recent applied constraints
     last_imported_document_id: Optional[int] = None
     last_completed_subject: Optional[str] = None
+
+    # Stateful Academic Memory Fields
+    current_topic: Optional[str] = None
+    current_chapter: Optional[str] = None
+    current_document: Optional[str] = None
+    current_goal: str = "Mastery"
+    current_strategy: Optional[str] = None
+    current_weak_concept: Optional[str] = None
+    mastery_level: str = "Intermediate"          # Beginner (<40%), Intermediate (40-75%), Advanced (>75%)
+
     history: List[ConversationTurn] = field(default_factory=list)
     conversation_started_at: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc)
@@ -64,14 +76,15 @@ def get_session(user_id: int) -> ConversationSession:
 
 
 def update_session(user_id: int, **kwargs) -> ConversationSession:
-    """Update specific session fields for a user."""
+    """Update specific fields on a user's session."""
     session = get_session(user_id)
-    for key, value in kwargs.items():
-        if hasattr(session, key):
-            setattr(session, key, value)
+    for key, val in kwargs.items():
+        if hasattr(session, key) and val is not None:
+            setattr(session, key, val)
     return session
 
 
 def clear_session(user_id: int) -> None:
-    """Clear the session for a user (e.g., on logout)."""
-    _sessions.pop(user_id, None)
+    """Clear session data for the given user."""
+    if user_id in _sessions:
+        del _sessions[user_id]
