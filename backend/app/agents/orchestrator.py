@@ -846,5 +846,46 @@ def execute_swarm_workflow(
     )
 
     total_latency_ms = round((time.perf_counter() - start_perf) * 1000, 2)
+
+    # ── Step 10: Database Persistence of Swarm Telemetry & Grounding Metadata ──
+    try:
+        from app.models.telemetry_log import SwarmTelemetryLog
+        db_log = SwarmTelemetryLog(
+            user_id=user_id,
+            query=user_query,
+            intent=primary_intent_value,
+            subject=subject_hint or (graph.subject if graph else "General"),
+            active_agents=exec_graph.active_agents,
+            skipped_agents=[s.agent_name for s in exec_graph.skipped_agents],
+            total_latency_ms=total_latency_ms,
+            dynamic_confidence=dynamic_confidence,
+            memory_before={
+                "last_intent": session.last_intent,
+                "last_subject": session.last_subject,
+                "current_topic": session.current_topic,
+                "mastery_level": session.mastery_level
+            },
+            memory_after={
+                "last_intent": primary_intent_value,
+                "last_subject": subject_hint or (graph.subject if graph else "General"),
+                "current_topic": user_query,
+                "mastery_level": session.mastery_level
+            },
+            step_logs=[s.model_dump() for s in step_logs],
+            reflection_audit=reflection.model_dump() if reflection else None,
+            planner_output=structured_plan.model_dump() if structured_plan else None,
+            grounding_report=grounding_report,
+            retrieved_nodes=[{"id": c.id, "title": c.title} for c in (graph.concepts[:5] if graph else [])],
+            exact_prompt=grounded_prompt if primary_intent_value != "greeting" else None,
+            raw_gemini_output=result.custom_nl_response,
+            final_response=result.formatted_response
+        )
+        db.add(db_log)
+        db.commit()
+        logger.info("Orchestrator: SwarmTelemetryLog persisted ID=%s user_id=%d", db_log.id, user_id)
+    except Exception as db_exc:
+        db.rollback()
+        logger.warning("Orchestrator: Telemetry persistence notice: %s", db_exc)
+
     logger.info("Orchestrator done: user=%d steps=%d confidence=%.2f latency=%.2fms", user_id, len(step_logs), dynamic_confidence, total_latency_ms)
     return result

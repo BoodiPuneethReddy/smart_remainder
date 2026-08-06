@@ -136,3 +136,50 @@ def get_weekly(
         total_this_week=total_this_week,
         completed_this_week=completed_this_week,
     )
+
+
+@router.get("/telemetry/latest")
+def get_latest_telemetry(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.models.telemetry_log import SwarmTelemetryLog
+    log_item = db.query(SwarmTelemetryLog).filter(
+        SwarmTelemetryLog.user_id == current_user.id
+    ).order_by(SwarmTelemetryLog.created_at.desc()).first()
+
+    if not log_item:
+        return {"status": "empty", "message": "No telemetry logs recorded yet."}
+
+    return {
+        "id": log_item.id,
+        "query": log_item.query,
+        "intent": log_item.intent,
+        "subject": log_item.subject,
+        "active_agents": log_item.active_agents,
+        "skipped_agents": log_item.skipped_agents,
+        "total_latency_ms": log_item.total_latency_ms,
+        "dynamic_confidence": log_item.dynamic_confidence,
+        "memory_before": log_item.memory_before,
+        "memory_after": log_item.memory_after,
+        "step_logs": log_item.step_logs,
+        "reflection_audit": log_item.reflection_audit,
+        "planner_output": log_item.planner_output,
+        "grounding_report": log_item.grounding_report,
+        "retrieved_nodes": log_item.retrieved_nodes,
+        "exact_prompt": log_item.exact_prompt,
+        "raw_gemini_output": log_item.raw_gemini_output,
+        "final_response": log_item.final_response,
+        "created_at": log_item.created_at.isoformat()
+    }
+
+
+@router.get("/knowledge-graph")
+def get_knowledge_graph():
+    from app.agents.retrieval_agent import _create_dbms_normalization_graph
+    kg = _create_dbms_normalization_graph()
+    return {
+        "subject": kg.subject,
+        "concepts": [c.model_dump() for c in kg.concepts],
+        "prerequisite_edges": kg.prerequisite_edges
+    }

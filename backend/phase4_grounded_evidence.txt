@@ -113,3 +113,510 @@ What would you like to accomplish today? Ask me to explain a concept, build a cu
 ################################################################################
 SCENARIO 02/12: "Explain normalization"
 ################################################################################
+
+1. INCOMING REQUEST PAYLOAD:
+{
+  "user_id": 1,
+  "question": "Explain normalization"
+}
+
+2. DYNAMIC RUNTIME EXECUTION GRAPH:
+--------------------------------------------------------------------------------
+IntentAgent -> ContextAgent -> RetrievalAgent -> DocumentAgent -> TutorAgent
+--------------------------------------------------------------------------------
+
+3. SHARED MEMORY EVOLUTION:
+  • Memory BEFORE: {"last_intent": "greeting", "last_subject": null, "current_topic": null, "current_goal": "Mastery", "mastery_level": "Intermediate", "history_turn_count": 1}
+  • Memory AFTER:  {"last_intent": "tutor", "last_subject": "DBMS", "current_topic": null, "current_goal": "Mastery", "mastery_level": "Intermediate", "history_turn_count": 2, "latest_query": "Explain normalization", "last_explanation": null}
+
+4. TOP-5 RETRIEVED KNOWLEDGE NODES & CITATION METADATA:
+  • No active document knowledge nodes retrieved (Conversational Intent).
+
+5. AGENT STEP TELEMETRY (PER-AGENT LATENCY BREAKDOWN):
+  • [IntentAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Classified intent: 'tutor' | Subject: DBMS
+  • [StrategyAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • [PlannerAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • [ReflectionAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • [ReminderAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • [AnalyticsAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • [ContextAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Pruned conversation history to 1 turns for intent 'tutor'
+  • [RetrievalAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Retrieved Top-0 concept nodes for query 'Explain normalization' [None]
+  • [DocumentAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Traversed 'Edge Case Academic Schedule Test' knowledge graph (1 total concepts)
+  • [TutorAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Grounded Socratic explanation using 0 retrieved nodes
+
+6. DYNAMIC CONFIDENCE ESTIMATION: 1.00 (Calculated strictly over executed agents)
+   MEASURED WORKFLOW LATENCY: 9929.18 ms
+
+7. GROUNDING TELEMETRY REPORT (FACTUAL ORIGINS & CITATIONS):
+{
+  "knowledge_nodes_used": [],
+  "used_definitions": [],
+  "used_examples": [],
+  "used_sql_examples": [],
+  "used_formulas": [],
+  "planner_fields_used": [],
+  "analytics_used": [],
+  "memory_used": [
+    "last_subject",
+    "current_topic",
+    "mastery_level",
+    "history"
+  ]
+}
+
+8. EXACT PROMPT SENT TO GEMINI (GROUNDED STRUCTURE):
+--------------------------------------------------------------------------------
+================================================================================
+SYSTEM ROLE:
+You are a personal academic AI study mentor with perfect memory of this student's progress.
+Talk like ChatGPT or an expert professor in office hours: direct, empathetic, intelligent, and natural.
+
+GROUNDING DIRECTIVES (CRITICAL):
+1. Everything you state MUST originate strictly from the RETRIEVED KNOWLEDGE NODES, PLANNER OUTPUT, or LEARNING PROFILE below.
+2. Do NOT fabricate facts, invent unprovided exam dates, or guess missing concepts.
+3. Do NOT use template headers or mention internal agent names ('PlannerAgent', 'ReflectionAgent', 'DocumentAgent').
+
+ADAPTIVE PEDAGOGY (INTERMEDIATE TIER):
+• Provide clear definitions balanced with executable SQL code snippets.
+• Explain both core theory and practical database design implications.
+• Highlight common student misconceptions directly.
+================================================================================
+
+CURRENT GOAL & CONTEXT:
+  • User Query: "Explain normalization"
+  • Subject Focus: DBMS
+  • Intent: tutor
+  • Student Mastery Tier: Intermediate (65%) | Retention: 100%
+
+RECENT CONVERSATION HISTORY (Pruned):
+CONVERSATION HISTORY (Recent turns with student):
+Student: Hi
+Student: Explain normalization
+
+
+TASK:
+Generate a helpful, grounded Markdown response directly addressing the user query.
+--------------------------------------------------------------------------------
+
+9. RAW GEMINI RESPONSE & RENDERED UI OUTPUT:
+--------------------------------------------------------------------------------
+### Introduction & Foundations
+Edge Case Academic Schedule Test
+Synthetic schedule designed to confuse parsers and AI agents. Correct systems should ask for clarification instead of inventing data.
+ItemnDetails
+DBMS Case StudynOld deadline: 25 Aug 202...
+
+--------------------------------------------------------------------------------
+
+
+################################################################################
+SCENARIO 03/12: "Why?"
+################################################################################
+
+1. INCOMING REQUEST PAYLOAD:
+{
+  "user_id": 1,
+  "question": "Why?"
+}
+
+2. DYNAMIC RUNTIME EXECUTION GRAPH:
+--------------------------------------------------------------------------------
+IntentAgent -> ContextAgent -> RetrievalAgent -> DocumentAgent -> TutorAgent
+--------------------------------------------------------------------------------
+
+3. SHARED MEMORY EVOLUTION:
+  • Memory BEFORE: {"last_intent": "tutor", "last_subject": "DBMS", "current_topic": null, "current_goal": "Mastery", "mastery_level": "Intermediate", "history_turn_count": 2}
+  • Memory AFTER:  {"last_intent": "tutor", "last_subject": "DBMS", "current_topic": null, "current_goal": "Mastery", "mastery_level": "Intermediate", "history_turn_count": 3, "latest_query": "Why?", "last_explanation": null}
+
+4. TOP-5 RETRIEVED KNOWLEDGE NODES & CITATION METADATA:
+  • No active document knowledge nodes retrieved (Conversational Intent).
+
+5. AGENT STEP TELEMETRY (PER-AGENT LATENCY BREAKDOWN):
+  • [IntentAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Classified intent: 'tutor'
+  • [StrategyAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • [PlannerAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • [ReflectionAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • [ReminderAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • [AnalyticsAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • [ContextAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Pruned conversation history to 2 turns for intent 'tutor'
+  • [RetrievalAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Retrieved Top-0 concept nodes for query 'Why?' [None]
+  • [DocumentAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Traversed 'Edge Case Academic Schedule Test' knowledge graph (1 total concepts)
+  • [TutorAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Grounded Socratic explanation using 0 retrieved nodes
+
+6. DYNAMIC CONFIDENCE ESTIMATION: 1.00 (Calculated strictly over executed agents)
+   MEASURED WORKFLOW LATENCY: 10039.70 ms
+
+7. GROUNDING TELEMETRY REPORT (FACTUAL ORIGINS & CITATIONS):
+{
+  "knowledge_nodes_used": [],
+  "used_definitions": [],
+  "used_examples": [],
+  "used_sql_examples": [],
+  "used_formulas": [],
+  "planner_fields_used": [],
+  "analytics_used": [],
+  "memory_used": [
+    "last_subject",
+    "current_topic",
+    "mastery_level",
+    "history"
+  ]
+}
+
+8. EXACT PROMPT SENT TO GEMINI (GROUNDED STRUCTURE):
+--------------------------------------------------------------------------------
+================================================================================
+SYSTEM ROLE:
+You are a personal academic AI study mentor with perfect memory of this student's progress.
+Talk like ChatGPT or an expert professor in office hours: direct, empathetic, intelligent, and natural.
+
+GROUNDING DIRECTIVES (CRITICAL):
+1. Everything you state MUST originate strictly from the RETRIEVED KNOWLEDGE NODES, PLANNER OUTPUT, or LEARNING PROFILE below.
+2. Do NOT fabricate facts, invent unprovided exam dates, or guess missing concepts.
+3. Do NOT use template headers or mention internal agent names ('PlannerAgent', 'ReflectionAgent', 'DocumentAgent').
+
+ADAPTIVE PEDAGOGY (INTERMEDIATE TIER):
+• Provide clear definitions balanced with executable SQL code snippets.
+• Explain both core theory and practical database design implications.
+• Highlight common student misconceptions directly.
+================================================================================
+
+CURRENT GOAL & CONTEXT:
+  • User Query: "Why?"
+  • Subject Focus: DBMS
+  • Intent: tutor
+  • Student Mastery Tier: Intermediate (65%) | Retention: 100%
+
+RECENT CONVERSATION HISTORY (Pruned):
+CONVERSATION HISTORY (Recent turns with student):
+Student: Hi
+Student: Explain normalization
+Student: Why?
+
+
+TASK:
+Generate a helpful, grounded Markdown response directly addressing the user query.
+--------------------------------------------------------------------------------
+
+9. RAW GEMINI RESPONSE & RENDERED UI OUTPUT:
+--------------------------------------------------------------------------------
+### Introduction & Foundations
+Edge Case Academic Schedule Test
+Synthetic schedule designed to confuse parsers and AI agents. Correct systems should ask for clarification instead of inventing data.
+ItemnDetails
+DBMS Case StudynOld deadline: 25 Aug 202...
+
+--------------------------------------------------------------------------------
+
+
+################################################################################
+SCENARIO 04/12: "Another example"
+################################################################################
+
+1. INCOMING REQUEST PAYLOAD:
+{
+  "user_id": 1,
+  "question": "Another example"
+}
+
+2. DYNAMIC RUNTIME EXECUTION GRAPH:
+--------------------------------------------------------------------------------
+IntentAgent -> ContextAgent -> StrategyAgent -> TutorAgent
+--------------------------------------------------------------------------------
+
+3. SHARED MEMORY EVOLUTION:
+  • Memory BEFORE: {"last_intent": "tutor", "last_subject": "DBMS", "current_topic": null, "current_goal": "Mastery", "mastery_level": "Intermediate", "history_turn_count": 3}
+  • Memory AFTER:  {"last_intent": "unknown", "last_subject": "DBMS", "current_topic": null, "current_goal": "Mastery", "mastery_level": "Intermediate", "history_turn_count": 4, "latest_query": "Another example", "last_explanation": null}
+
+4. TOP-5 RETRIEVED KNOWLEDGE NODES & CITATION METADATA:
+  • No active document knowledge nodes retrieved (Conversational Intent).
+
+5. AGENT STEP TELEMETRY (PER-AGENT LATENCY BREAKDOWN):
+  • [IntentAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Classified intent: 'unknown'
+  • [RetrievalAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: General query; invoking default strategy and tutor agents.
+  • [DocumentAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: General query; invoking default strategy and tutor agents.
+  • [PlannerAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: General query; invoking default strategy and tutor agents.
+  • [ReflectionAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: General query; invoking default strategy and tutor agents.
+  • [ReminderAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: General query; invoking default strategy and tutor agents.
+  • [AnalyticsAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: General query; invoking default strategy and tutor agents.
+  • [ContextAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Pruned conversation history to 3 turns for intent 'unknown'
+  • [RetrievalAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Retrieved Top-0 concept nodes for query 'Another example' [None]
+  • [DocumentAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Traversed 'Edge Case Academic Schedule Test' knowledge graph (1 total concepts)
+  • [TutorAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Grounded Socratic explanation using 0 retrieved nodes
+
+6. DYNAMIC CONFIDENCE ESTIMATION: 1.00 (Calculated strictly over executed agents)
+   MEASURED WORKFLOW LATENCY: 9932.02 ms
+
+7. GROUNDING TELEMETRY REPORT (FACTUAL ORIGINS & CITATIONS):
+{
+  "knowledge_nodes_used": [],
+  "used_definitions": [],
+  "used_examples": [],
+  "used_sql_examples": [],
+  "used_formulas": [],
+  "planner_fields_used": [],
+  "analytics_used": [],
+  "memory_used": [
+    "last_subject",
+    "current_topic",
+    "mastery_level",
+    "history"
+  ]
+}
+
+8. EXACT PROMPT SENT TO GEMINI (GROUNDED STRUCTURE):
+--------------------------------------------------------------------------------
+================================================================================
+SYSTEM ROLE:
+You are a personal academic AI study mentor with perfect memory of this student's progress.
+Talk like ChatGPT or an expert professor in office hours: direct, empathetic, intelligent, and natural.
+
+GROUNDING DIRECTIVES (CRITICAL):
+1. Everything you state MUST originate strictly from the RETRIEVED KNOWLEDGE NODES, PLANNER OUTPUT, or LEARNING PROFILE below.
+2. Do NOT fabricate facts, invent unprovided exam dates, or guess missing concepts.
+3. Do NOT use template headers or mention internal agent names ('PlannerAgent', 'ReflectionAgent', 'DocumentAgent').
+
+ADAPTIVE PEDAGOGY (INTERMEDIATE TIER):
+• Provide clear definitions balanced with executable SQL code snippets.
+• Explain both core theory and practical database design implications.
+• Highlight common student misconceptions directly.
+================================================================================
+
+CURRENT GOAL & CONTEXT:
+  • User Query: "Another example"
+  • Subject Focus: DBMS
+  • Intent: unknown
+  • Student Mastery Tier: Intermediate (65%) | Retention: 100%
+
+RECENT CONVERSATION HISTORY (Pruned):
+CONVERSATION HISTORY (Recent turns with student):
+Student: Explain normalization
+Student: Why?
+Student: Another example
+
+
+TASK:
+Generate a helpful, grounded Markdown response directly addressing the user query.
+--------------------------------------------------------------------------------
+
+9. RAW GEMINI RESPONSE & RENDERED UI OUTPUT:
+--------------------------------------------------------------------------------
+I can help you build a personalized study schedule. Let me know how much time you have today (e.g. 'I have 2 hours') or upload your course materials.
+--------------------------------------------------------------------------------
+
+
+################################################################################
+SCENARIO 05/12: "Quiz me"
+################################################################################
+
+1. INCOMING REQUEST PAYLOAD:
+{
+  "user_id": 1,
+  "question": "Quiz me"
+}
+
+2. DYNAMIC RUNTIME EXECUTION GRAPH:
+--------------------------------------------------------------------------------
+IntentAgent -> ContextAgent -> RetrievalAgent -> DocumentAgent -> TutorAgent
+--------------------------------------------------------------------------------
+
+3. SHARED MEMORY EVOLUTION:
+  • Memory BEFORE: {"last_intent": "unknown", "last_subject": "DBMS", "current_topic": null, "current_goal": "Mastery", "mastery_level": "Intermediate", "history_turn_count": 4}
+  • Memory AFTER:  {"last_intent": "tutor", "last_subject": "DBMS", "current_topic": null, "current_goal": "Mastery", "mastery_level": "Intermediate", "history_turn_count": 5, "latest_query": "Quiz me", "last_explanation": null}
+
+4. TOP-5 RETRIEVED KNOWLEDGE NODES & CITATION METADATA:
+  • No active document knowledge nodes retrieved (Conversational Intent).
+
+5. AGENT STEP TELEMETRY (PER-AGENT LATENCY BREAKDOWN):
+  • [IntentAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Classified intent: 'tutor'
+  • [StrategyAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • [PlannerAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • [ReflectionAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • [ReminderAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • [AnalyticsAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Intent 'tutor' focuses on conceptual explanation; scheduling and reflection skipped.
+  • [ContextAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Pruned conversation history to 3 turns for intent 'tutor'
+  • [RetrievalAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Retrieved Top-0 concept nodes for query 'Quiz me' [None]
+  • [DocumentAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Traversed 'Edge Case Academic Schedule Test' knowledge graph (1 total concepts)
+  • [TutorAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Grounded Socratic explanation using 0 retrieved nodes
+
+6. DYNAMIC CONFIDENCE ESTIMATION: 1.00 (Calculated strictly over executed agents)
+   MEASURED WORKFLOW LATENCY: 9932.73 ms
+
+7. GROUNDING TELEMETRY REPORT (FACTUAL ORIGINS & CITATIONS):
+{
+  "knowledge_nodes_used": [],
+  "used_definitions": [],
+  "used_examples": [],
+  "used_sql_examples": [],
+  "used_formulas": [],
+  "planner_fields_used": [],
+  "analytics_used": [],
+  "memory_used": [
+    "last_subject",
+    "current_topic",
+    "mastery_level",
+    "history"
+  ]
+}
+
+8. EXACT PROMPT SENT TO GEMINI (GROUNDED STRUCTURE):
+--------------------------------------------------------------------------------
+================================================================================
+SYSTEM ROLE:
+You are a personal academic AI study mentor with perfect memory of this student's progress.
+Talk like ChatGPT or an expert professor in office hours: direct, empathetic, intelligent, and natural.
+
+GROUNDING DIRECTIVES (CRITICAL):
+1. Everything you state MUST originate strictly from the RETRIEVED KNOWLEDGE NODES, PLANNER OUTPUT, or LEARNING PROFILE below.
+2. Do NOT fabricate facts, invent unprovided exam dates, or guess missing concepts.
+3. Do NOT use template headers or mention internal agent names ('PlannerAgent', 'ReflectionAgent', 'DocumentAgent').
+
+ADAPTIVE PEDAGOGY (INTERMEDIATE TIER):
+• Provide clear definitions balanced with executable SQL code snippets.
+• Explain both core theory and practical database design implications.
+• Highlight common student misconceptions directly.
+================================================================================
+
+CURRENT GOAL & CONTEXT:
+  • User Query: "Quiz me"
+  • Subject Focus: DBMS
+  • Intent: tutor
+  • Student Mastery Tier: Intermediate (65%) | Retention: 100%
+
+RECENT CONVERSATION HISTORY (Pruned):
+CONVERSATION HISTORY (Recent turns with student):
+Student: Why?
+Student: Another example
+Student: Quiz me
+
+
+TASK:
+Generate a helpful, grounded Markdown response directly addressing the user query.
+--------------------------------------------------------------------------------
+
+9. RAW GEMINI RESPONSE & RENDERED UI OUTPUT:
+--------------------------------------------------------------------------------
+### Introduction & Foundations
+Edge Case Academic Schedule Test
+Synthetic schedule designed to confuse parsers and AI agents. Correct systems should ask for clarification instead of inventing data.
+ItemnDetails
+DBMS Case StudynOld deadline: 25 Aug 202...
+
+--------------------------------------------------------------------------------
+
+
+################################################################################
+SCENARIO 06/12: "Make it harder"
+################################################################################
+
+1. INCOMING REQUEST PAYLOAD:
+{
+  "user_id": 1,
+  "question": "Make it harder"
+}
+
+2. DYNAMIC RUNTIME EXECUTION GRAPH:
+--------------------------------------------------------------------------------
+IntentAgent -> ContextAgent -> StrategyAgent -> PlannerAgent -> ReflectionAgent -> ReminderAgent -> AnalyticsAgent
+--------------------------------------------------------------------------------
+
+3. SHARED MEMORY EVOLUTION:
+  • Memory BEFORE: {"last_intent": "tutor", "last_subject": "DBMS", "current_topic": null, "current_goal": "Mastery", "mastery_level": "Intermediate", "history_turn_count": 5}
+  • Memory AFTER:  {"last_intent": "study_planning", "last_subject": "DBMS", "current_topic": "Make it harder", "current_goal": "Mastery", "mastery_level": "Intermediate", "history_turn_count": 6, "latest_query": "Make it harder", "last_explanation": "Here is your recommended study plan for **1h 30m**:\n\n1. **DB..."}
+
+4. TOP-5 RETRIEVED KNOWLEDGE NODES & CITATION METADATA:
+  • No active document knowledge nodes retrieved (Conversational Intent).
+
+5. AGENT STEP TELEMETRY (PER-AGENT LATENCY BREAKDOWN):
+  • [IntentAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Classified intent: 'study_planning' | Subject: DBMS | Time: 90m | Follow-up context resolved
+  • [RetrievalAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: No document selected for study planning.
+  • [DocumentAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: No active document context in session.
+  • [TutorAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Study planning prioritizes task schedule allocation over topic explanations.
+  • [ContextAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Pruned conversation history to 3 turns for intent 'study_planning'
+  • [DocumentAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Knowledge graph: 'Edge Case Academic Schedule Test' (ACADEMIC) | 1 concepts | Features: formulas, prerequisites
+  • [StrategyAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
+    Summary: Strategy: 'concept-first' | Mathematical formulas detected. Ensuring conceptual understanding before formula...
+  • [PlannerAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: ['user_profile', 'learning_profiles', 'task_db'] | Memory Written: ['current_schedule']
+    Summary: Attempt 1: Scheduled 2 sessions (150m / 90m) | Deferred 335 tasks
+  • [ReflectionAgent] Status: WARNING | Confidence: 0.75 | Latency: 0.00ms | Memory Read: ['current_schedule'] | Memory Written: ['reflection_history']
+    Summary: Attempt 1: REJECTED — Excessive duration: 150m exceeds 90m budget cap. Recommendations: {'action': 'TRIM_LOW_PRIORITY', 'target_budget': 90, 'reason': 'Cap total session allocation to user-specified budget and defer non-urgent tasks.'}
+  • [ReflectionAgent] Status: COMPLETED | Confidence: 0.95 | Latency: 0.00ms | Memory Read: ['current_schedule', 'reflection_history'] | Memory Written: ['verified_schedule']
+    Summary: Attempt 2: APPROVED — Feasible schedule (60m / 90m budget).
+  • [AnalyticsAgent] Status: COMPLETED | Confidence: 0.96 | Latency: 0.00ms | Memory Read: ['task_db', 'user_profile'] | Memory Written: ['analytics_summary']
+    Summary: Completion: 0.0% | Burnout: low | Predicted readiness: 0.0%
+
+6. DYNAMIC CONFIDENCE ESTIMATION: 0.96 (Calculated strictly over executed agents)
+   MEASURED WORKFLOW LATENCY: 20470.66 ms
+
+7. GROUNDING TELEMETRY REPORT (FACTUAL ORIGINS & CITATIONS):
+{
+  "knowledge_nodes_used": [],
+  "used_definitions": [],
+  "used_examples": [],
+  "used_sql_examples": [],
+  "used_formulas": [],
+  "planner_fields_used": [
+    "available_minutes",
+    "allocated_minutes",
+    "items",
+    "deferred_tasks"
+  ],
+  "analytics_used": [
+    "completion_rate",
+    "burnout_risk_level",
+    "predicted_exam_readiness"
+  ],
+  "memory_used": [
+    "last_subject",
+    "current_topic",
+    "mastery_level",
+    "history"
+  ]
+}

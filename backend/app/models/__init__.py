@@ -18,11 +18,12 @@ from app.models.learning_objective import LearningObjective
 from app.models.tutor_bookmark import TutorBookmark
 from app.models.mistake_journal import MistakeJournal
 from app.models.study_note import StudyNote
+from app.models.telemetry_log import SwarmTelemetryLog
 
 __all__ = [
     "User", "Task", "StudySession", "Notification", "Recommendation",
     "College", "CollegeAlias", "OTPCode", "ImportedDocument",
     "LearningProfile", "QuestionCitation", "TutorSession", 
     "TutorMessage", "TutorMessageChunk", "LearningObjective", "TutorBookmark",
-    "MistakeJournal", "StudyNote",
+    "MistakeJournal", "StudyNote", "SwarmTelemetryLog",
 ]
