@@ -92,36 +92,55 @@ def build_grounded_mentor_prompt(context: Dict[str, Any]) -> str:
     elif mastery_pct > 75:
         mastery_level = "Advanced"
 
+    personality = context.get("teacher_personality", context.get("personality", "Socratic Tutor"))
+    goal = context.get("target_goal", context.get("goal", "General Learning"))
+    mode = context.get("learning_mode", "Teach Me")
+    fmt = context.get("assessment_type", "Mixed")
+    length = context.get("session_length", "60 min")
+
+    personality_directives = {
+        "Socratic Tutor": "Ask guiding questions. Never immediately reveal answers. Help student discover concepts.",
+        "Professor": "Detailed academic lectures. Formal definitions and rigorous theoretical explanations.",
+        "Friendly Teacher": "Simple language. Intuitive real-world analogies. Encouraging and supportive tone.",
+        "Exam Coach": "Exam-oriented bullet points. Focus on scoring marks, high-yield topics, and exam tips.",
+        "Interviewer": "Conduct a professional technical mock interview. Ask crisp follow-up questions and evaluate every answer."
+    }
+
+    goal_directives = {
+        "Semester": "Align with university semester syllabus and core conceptual foundations.",
+        "Mid Exam": "Focus on high-priority mid-term examination units and definitions.",
+        "College Exam": "Cover the complete college exam syllabus thoroughly with key definitions and diagrams.",
+        "Placement": "Emphasize technical interview concepts, problem solving, and practical coding/SQL implementation.",
+        "Interview": "Conduct behavioral and technical interview questions with crisp evaluative feedback.",
+        "GATE": "Focus on competitive exam level mathematical rigor, edge cases, and numerical problem solving.",
+        "General Learning": "Foster curiosity, deep conceptual understanding, and real-world practical applications."
+    }
+
+    mode_directives = {
+        "Teach Me": "Explain concepts step-by-step before asking any check-in questions.",
+        "Mixed": "Balance explanation, check-in quiz questions, practical examples, and interactive discussion.",
+        "Test Me": "Ask questions ONLY! Do NOT provide explanations until the student submits their response.",
+        "Revise": "Provide a rapid bullet-point summary, key formula/definition cheat sheet, and rapid recall highlights.",
+        "Challenge Me": "Ask hard edge-case questions, optimization tradeoffs, and deep conceptual challenge problems.",
+        "Interview Me": "Structure the interaction as a live technical interview. Ask one question at a time and grade student answers."
+    }
+
     # Adaptive Pedagogy Guidance
-    if mastery_level == "Beginner":
-        adaptive_guidance = (
-            "ADAPTIVE PEDAGOGY (BEGINNER TIER):\n"
-            "• Use intuitive real-world analogies (e.g. library books, Excel sheets).\n"
-            "• Provide concrete step-by-step examples before formal definitions.\n"
-            "• Keep mathematical formulas minimal and explain every variable.\n"
-            "• End with a lightweight 1-question check-in."
-        )
-    elif mastery_level == "Advanced":
-        adaptive_guidance = (
-            "ADAPTIVE PEDAGOGY (ADVANCED TIER):\n"
-            "• Focus on technical depth, edge cases, and query optimization.\n"
-            "• Present interview-style questions and system design tradeoffs.\n"
-            "• Use formal relational algebra notation and SQL schema constraints.\n"
-            "• Skip elementary analogies."
-        )
-    else:
-        adaptive_guidance = (
-            "ADAPTIVE PEDAGOGY (INTERMEDIATE TIER):\n"
-            "• Provide clear definitions balanced with executable SQL code snippets.\n"
-            "• Explain both core theory and practical database design implications.\n"
-            "• Highlight common student misconceptions directly."
-        )
+    adaptive_guidance = (
+        f"PEDAGOGICAL DIRECTIVES (USER SELECTIONS):\n"
+        f"• TUTOR PERSONALITY [{personality}]: {personality_directives.get(personality, personality_directives['Socratic Tutor'])}\n"
+        f"• LEARNING GOAL [{goal}]: {goal_directives.get(goal, goal_directives['General Learning'])}\n"
+        f"• LEARNING MODE [{mode}]: {mode_directives.get(mode, mode_directives['Teach Me'])}\n"
+        f"• ASSESSMENT FORMAT [{fmt}]: Format check-in questions matching '{fmt}'.\n"
+        f"• SESSION DURATION [{length}]: Structure depth appropriate for {length} duration.\n"
+        f"• MASTERY TIER [{mastery_level}]: Calibrate explanation density to {mastery_level} student tier."
+    )
 
     prompt_sections = [
         "================================================================================",
         "SYSTEM ROLE:",
-        "You are a personal academic AI study mentor with perfect memory of this student's progress.",
-        "Talk like ChatGPT or an expert professor in office hours: direct, empathetic, intelligent, and natural.",
+        f"You are an expert academic AI study mentor ({personality}) with perfect memory of this student's progress.",
+        "Teach ONLY from the supplied extracted content below. Never invent concepts.",
         "",
         "GROUNDING DIRECTIVES (CRITICAL):",
         "1. Everything you state MUST originate strictly from the RETRIEVED KNOWLEDGE NODES, PLANNER OUTPUT, or LEARNING PROFILE below.",

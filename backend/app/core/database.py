@@ -43,5 +43,27 @@ def get_db():
 
 
 def create_all_tables():
-    """Create all database tables. Called on application startup."""
+    """Create all database tables and add missing columns dynamically."""
     Base.metadata.create_all(bind=engine)
+
+    # Lightweight SQLite column migrations for TutorSession
+    with engine.connect() as conn:
+        try:
+            from sqlalchemy import text
+            columns_to_add = [
+                ("document_id", "INTEGER"),
+                ("difficulty_name", "VARCHAR DEFAULT 'Adaptive'"),
+                ("session_length", "VARCHAR DEFAULT '60 min'"),
+                ("selected_topics", "TEXT"),
+                ("current_concept", "VARCHAR"),
+                ("remaining_concepts", "TEXT"),
+                ("weak_topics", "TEXT")
+            ]
+            for col_name, col_type in columns_to_add:
+                try:
+                    conn.execute(text(f"ALTER TABLE tutor_sessions ADD COLUMN {col_name} {col_type};"))
+                    conn.commit()
+                except Exception:
+                    pass
+        except Exception:
+            pass
