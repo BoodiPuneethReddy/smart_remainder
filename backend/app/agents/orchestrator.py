@@ -48,6 +48,7 @@ from app.agents.models import (
     SwarmStepLog,
     StructuredPlanModel,
     PlanItemModel,
+    DeferredTaskModel,
     KnowledgeGraphModel,
 )
 from app.agents.memory import get_shared_memory
@@ -568,8 +569,10 @@ def execute_swarm_workflow(
                                 constraints={"available_minutes": user_time_limit} if user_time_limit else None)
     # build_daily_plan returns {"tasks": [...], ...}
     db_tasks = raw_plan.get("tasks", [])
+    raw_deferred = raw_plan.get("deferred_tasks", [])
 
     plan_items: List[PlanItemModel] = []
+    deferred_tasks: List[DeferredTaskModel] = []
 
     if db_tasks:
         for item in db_tasks:
@@ -580,33 +583,47 @@ def execute_swarm_workflow(
                 task_type=item.get("task_type", "study"),
                 recommended_minutes=item.get("recommended_minutes", 35),
                 priority_score=item.get("priority_score", 50.0),
+                urgency_score=item.get("urgency_score", 50.0),
+                importance_score=item.get("importance_score", 50.0),
+                weakness_score=item.get("weakness_score", 50.0),
+                retention_score=item.get("retention_score", 100.0),
+                effort_score=item.get("effort_score", 50.0),
                 days_remaining=item.get("days_remaining", 7),
+                decision_reason=item.get("decision_reason", "Scheduled based on priority ranking."),
                 ai_explanation=item.get("ai_explanation", ""),
             ))
+
+    for def_item in raw_deferred:
+        deferred_tasks.append(DeferredTaskModel(
+            task_id=def_item.get("task_id"),
+            title=def_item.get("title", "Study Task"),
+            subject=def_item.get("subject", "General"),
+            priority_score=def_item.get("priority_score", 40.0),
+            decision="DEFERRED",
+            reason=def_item.get("reason", "Deferred due to time budget cap.")
+        ))
 
     # Supplement with knowledge graph concepts if tasks are sparse
     if graph and len(plan_items) < 3:
         graph_items = _graph_to_plan_items(graph, learning_ctx, user_time_limit)
-        # Add only graph items that aren't duplicated by DB task subjects
         db_subjects = {i.subject.lower() for i in plan_items}
         for gi in graph_items:
             if gi.subject.lower() not in db_subjects or len(plan_items) == 0:
                 plan_items.append(gi)
 
-    # Apply time constraint
     target_avail = user_time_limit or raw_plan.get("total_recommended_minutes", 240)
-    if user_time_limit and plan_items:
-        plan_items = _fit_plan_to_time(plan_items, user_time_limit)
 
     structured_plan = StructuredPlanModel(
         user_id=user_id,
         available_minutes=target_avail,
         allocated_minutes=sum(i.recommended_minutes for i in plan_items),
         items=plan_items,
+        deferred_tasks=deferred_tasks,
+        attempt_number=1,
         confidence=0.95,
         reasoning=[
-            "Priority scoring: 0.35×Urgency + 0.20×ExamWeight + 0.20×Importance + 0.10×Ebbinghaus + 0.15×Recency.",
-            f"Context: {learning_ctx['total_profiles'] if learning_ctx['has_learning_data'] else 0} learning profiles consulted.",
+            "Priority formula: 0.35×Urgency + 0.20×ExamWeight + 0.20×Importance + 0.10×Ebbinghaus + 0.15×Recency.",
+            f"Consulted {learning_ctx['total_profiles'] if learning_ctx['has_learning_data'] else 0} active learning profile(s).",
         ],
     )
     memory.set_schedule(user_id, structured_plan)
@@ -615,10 +632,11 @@ def execute_swarm_workflow(
         agent_name="PlannerAgent",
         status="completed",
         summary=(
-            f"Scheduled {len(plan_items)} sessions | "
-            f"Total: {structured_plan.allocated_minutes}m / {target_avail}m budget | "
-            f"DB tasks: {len(db_tasks)} | Graph items: {max(0, len(plan_items)-len(db_tasks))}"
+            f"Attempt 1: Scheduled {len(plan_items)} sessions ({structured_plan.allocated_minutes}m / {target_avail}m) | "
+            f"Deferred {len(deferred_tasks)} tasks"
         ),
+        memory_read=["user_profile", "learning_profiles", "task_db"],
+        memory_written=["current_schedule"]
     ))
 
     # ── Step 6: Reminders (only for study planning) ────────────────────────
@@ -632,43 +650,69 @@ def execute_swarm_workflow(
                     status="completed",
                     summary=f"Found {len(active_reminders)} urgent reminders: " +
                             ", ".join(f"{n.title}" for n in active_reminders[:2]),
+                    memory_read=["task_db"],
+                    memory_written=["active_reminders"]
                 ))
         except Exception as exc:
             logger.warning("ReminderAgent failed: %s", exc)
 
-    # ── Step 7: Reflection & Active Re-planning Feedback Loop ───────────────
-    reflection = review_plan(structured_plan, max_budget_minutes=target_avail)
-    memory.add_reflection(user_id, reflection)
-
-    if reflection.replan_required:
-        initial_allocated = structured_plan.allocated_minutes
-        step_logs.append(SwarmStepLog(
-            agent_name="ReflectionAgent",
-            status="warning",
-            summary=f"Plan rejected: {reflection.warnings[0]} Triggering re-plan feedback loop to PlannerAgent.",
-        ))
-
-        # Re-invoke Planner scaling with strict budget cap constraint
-        if plan_items and target_avail:
-            plan_items = _fit_plan_to_time(plan_items, target_avail)
-            structured_plan.items = plan_items
-            structured_plan.allocated_minutes = sum(i.recommended_minutes for i in plan_items)
-
-        # Re-evaluate revised plan
-        reflection = review_plan(structured_plan, max_budget_minutes=target_avail)
+    # ── Step 7: Reflection — Multi-Pass Feedback Loop (Max 3 Attempts) ─────
+    reflection = None
+    for attempt in range(1, 4):
+        structured_plan.attempt_number = attempt
+        reflection = review_plan(
+            structured_plan,
+            max_budget_minutes=target_avail,
+            knowledge_graph=graph,
+            attempt_number=attempt
+        )
         memory.add_reflection(user_id, reflection)
 
-        step_logs.append(SwarmStepLog(
-            agent_name="ReflectionAgent",
-            status="completed",
-            summary=f"Re-evaluation APPROVED: Schedule scaled down from {initial_allocated}m to {structured_plan.allocated_minutes}m budget cap.",
-        ))
-    else:
-        step_logs.append(SwarmStepLog(
-            agent_name="ReflectionAgent",
-            status="completed",
-            summary=f"Schedule verified: Feasible and strictly within safe budget limit ({structured_plan.allocated_minutes}m / {target_avail}m).",
-        ))
+        if not reflection.replan_required:
+            step_logs.append(SwarmStepLog(
+                agent_name="ReflectionAgent",
+                status="completed",
+                summary=f"Attempt {attempt}: APPROVED — Feasible schedule ({structured_plan.allocated_minutes}m / {target_avail}m budget).",
+                memory_read=["current_schedule", "reflection_history"],
+                memory_written=["verified_schedule"],
+                confidence_score=reflection.confidence_score
+            ))
+            break
+        else:
+            step_logs.append(SwarmStepLog(
+                agent_name="ReflectionAgent",
+                status="warning",
+                summary=f"Attempt {attempt}: REJECTED — {reflection.warnings[0]} Recommendations: {reflection.recommendations[0] if reflection.recommendations else 'Trim budget'}",
+                memory_read=["current_schedule"],
+                memory_written=["reflection_history"],
+                confidence_score=reflection.confidence_score
+            ))
+
+            if attempt < 3:
+                # Intelligently optimize and defer lower priority tasks
+                if len(structured_plan.items) > 1:
+                    deferred_item = structured_plan.items.pop()
+                    structured_plan.deferred_tasks.append(DeferredTaskModel(
+                        task_id=deferred_item.task_id,
+                        title=deferred_item.title,
+                        subject=deferred_item.subject,
+                        priority_score=deferred_item.priority_score,
+                        decision="DEFERRED",
+                        reason=f"Deferred by Reflection attempt {attempt} to satisfy {target_avail}m budget cap."
+                    ))
+                if structured_plan.items:
+                    plan_items = _fit_plan_to_time(structured_plan.items, target_avail)
+                    structured_plan.items = plan_items
+                structured_plan.allocated_minutes = sum(i.recommended_minutes for i in structured_plan.items)
+            else:
+                step_logs.append(SwarmStepLog(
+                    agent_name="ReflectionAgent",
+                    status="failed",
+                    summary=f"Attempt 3: UNSATISFIABLE CONSTRAINTS — Unable to fit tasks into {target_avail}m after 3 attempts.",
+                    memory_read=["current_schedule", "reflection_history"],
+                    memory_written=["failed_schedule_notice"],
+                    confidence_score=0.30
+                ))
 
     # ── Step 8: Analytics ─────────────────────────────────────────────────
     analytics = generate_analytics_summary(user_id, db)

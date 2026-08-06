@@ -132,24 +132,18 @@ def score_all_tasks(user_id: int, db: Session, ai_client: AIInferenceClient) -> 
 def _allocate_minutes(
     tasks: list[Task],
     total_budget: int,
-    per_task_cap: int = DEFAULT_PER_TASK_CAP,
-) -> tuple[list[dict], int]:
+    per_task_cap: int,
+) -> tuple[list[dict], list[dict], int]:
     """
-    Deterministically allocate study minutes across tasks within a time budget.
-
-    Algorithm (pure Python, no AI — unit-testable without any AI call):
-      1. For each task (sorted by priority_score DESC):
-         daily_minutes = clamp(estimated_hours / days_left * 60, 30, per_task_cap)
-      2. Add to plan until budget exhausted.
-
-    Returns: (plan_items, total_minutes_allocated)
-    Same inputs → same outputs every time.
+    Allocates study budget deterministically based on priority_score ranking.
+    Returns (plan_items, deferred_items, minutes_allocated).
     """
     plan_items = []
+    deferred_items = []
     minutes_allocated = 0
     now = datetime.now(timezone.utc)
 
-    for task in tasks[:8]:
+    for task in tasks:
         due = task.due_date
         if due.tzinfo is None:
             due = due.replace(tzinfo=timezone.utc)
@@ -159,30 +153,39 @@ def _allocate_minutes(
         daily_minutes = max(MIN_TASK_SESSION_MINUTES, min(daily_minutes, per_task_cap))
 
         remaining_budget = total_budget - minutes_allocated
-        if daily_minutes > remaining_budget:
-            if remaining_budget < MIN_REMAINING_BUDGET_THRESHOLD:
-                break
-            daily_minutes = remaining_budget
-
         days_remaining = max(0, (due.date() - now.date()).days)
-        plan_items.append({
-            "task_id": task.id,
-            "title": task.title,
-            "subject": task.subject,
-            "task_type": task.task_type,
-            "due_date": task.due_date.isoformat(),
-            "priority_score": task.priority_score,
-            "urgency_score": task.urgency_score,
-            "importance_score": task.importance_score,
-            "weakness_score": task.weakness_score,
-            "effort_score": task.effort_score,
-            "ai_explanation": task.ai_explanation,
-            "recommended_minutes": daily_minutes,
-            "days_remaining": days_remaining,
-        })
-        minutes_allocated += daily_minutes
 
-    return plan_items, minutes_allocated
+        if remaining_budget >= MIN_TASK_SESSION_MINUTES:
+            session_mins = min(daily_minutes, remaining_budget)
+            plan_items.append({
+                "task_id": task.id,
+                "title": task.title,
+                "subject": task.subject,
+                "task_type": task.task_type,
+                "due_date": task.due_date.isoformat(),
+                "priority_score": getattr(task, 'priority_score', 50.0),
+                "urgency_score": getattr(task, 'urgency_score', 50.0),
+                "importance_score": getattr(task, 'importance_score', 50.0),
+                "weakness_score": getattr(task, 'weakness_score', 50.0),
+                "retention_score": getattr(task, 'retention_score', 100.0),
+                "effort_score": getattr(task, 'effort_score', 50.0),
+                "ai_explanation": getattr(task, 'ai_explanation', ''),
+                "recommended_minutes": session_mins,
+                "days_remaining": days_remaining,
+                "decision_reason": f"Kept: Due in {days_remaining}d; Priority {getattr(task, 'priority_score', 50.0):.1f} fits within {total_budget}m budget."
+            })
+            minutes_allocated += session_mins
+        else:
+            deferred_items.append({
+                "task_id": task.id,
+                "title": task.title,
+                "subject": task.subject,
+                "priority_score": getattr(task, 'priority_score', 50.0),
+                "decision": "DEFERRED",
+                "reason": f"Deferred: Priority score ({getattr(task, 'priority_score', 50.0):.1f}) lower than active items; {total_budget}m budget cap reached."
+            })
+
+    return plan_items, deferred_items, minutes_allocated
 
 
 def build_daily_plan(
@@ -208,7 +211,7 @@ def build_daily_plan(
     tasks = score_all_tasks(user_id, db, ai_client)
     today = datetime.now(timezone.utc).date()
 
-    plan_items, minutes_allocated = _allocate_minutes(tasks, total_budget, per_task_cap)
+    plan_items, deferred_items, minutes_allocated = _allocate_minutes(tasks, total_budget, per_task_cap)
 
     # AI presents the plan — never decides it
     try:
@@ -240,6 +243,7 @@ def build_daily_plan(
         "constraints_applied": constraints,
         "ai_presentation": ai_presentation,
         "tasks": plan_items,
+        "deferred_tasks": deferred_items,
     }
 
 

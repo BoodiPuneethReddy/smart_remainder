@@ -64,8 +64,25 @@ class PlanItemModel(BaseModel):
     task_type: str = "study"
     recommended_minutes: int = 45
     priority_score: float = 50.0
+    urgency_score: float = 50.0
+    importance_score: float = 50.0
+    weakness_score: float = 50.0
+    retention_score: float = 100.0
+    effort_score: float = 50.0
     days_remaining: int = 7
+    difficulty: int = 1
+    prerequisite_ids: List[str] = Field(default_factory=list)
+    decision_reason: str = "Scheduled based on highest priority score and budget availability."
     ai_explanation: str = ""
+
+
+class DeferredTaskModel(BaseModel):
+    task_id: Optional[int] = None
+    title: str
+    subject: str
+    priority_score: float
+    decision: str = "DEFERRED"  # DEFERRED, EXCLUDED
+    reason: str
 
 
 class StructuredPlanModel(BaseModel):
@@ -73,6 +90,8 @@ class StructuredPlanModel(BaseModel):
     available_minutes: int = 240
     allocated_minutes: int = 0
     items: List[PlanItemModel] = Field(default_factory=list)
+    deferred_tasks: List[DeferredTaskModel] = Field(default_factory=list)
+    attempt_number: int = 1
     confidence: float = 0.95
     reasoning: List[str] = Field(default_factory=list)
 
@@ -82,10 +101,15 @@ class StructuredPlanModel(BaseModel):
 class ReflectionValidationResult(BaseModel):
     is_valid: bool = True
     replan_required: bool = False
+    attempt_number: int = 1
     overload_risk: bool = False
     confidence_score: float = 0.92
+    allocated_minutes: int = 0
+    available_minutes: int = 240
+    violations: List[Dict[str, Any]] = Field(default_factory=list)
+    recommendations: List[Dict[str, Any]] = Field(default_factory=list)
+    learning_quality_issues: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
-    recommendations: List[str] = Field(default_factory=list)
     validated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -140,9 +164,12 @@ class MinimalContext(BaseModel):
 
 class SwarmStepLog(BaseModel):
     agent_name: str
-    status: str = "completed"  # pending, running, completed, warning, skipped
+    status: str  # completed, warning, skipped, failed
     summary: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    latency_ms: float = 0.0
+    memory_read: List[str] = Field(default_factory=list)
+    memory_written: List[str] = Field(default_factory=list)
+    confidence_score: float = 1.0
 
 
 class SwarmExecutionResult(BaseModel):
