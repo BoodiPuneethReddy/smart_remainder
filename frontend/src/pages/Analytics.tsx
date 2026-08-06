@@ -13,6 +13,7 @@ import {
 import { BarChart2, BookOpen, Target, Flame } from 'lucide-react';
 import { analyticsApi } from '@/lib/api';
 import { Card, Skeleton, iconSize } from '@/components/ui';
+import KnowledgeGraphExplorer from '@/components/ui/KnowledgeGraphExplorer';
 import { axisProps, gridProps, CustomTooltip, ChartWrapper, CHART_COLORS } from '@/components/ui/ChartTheme';
 import { chartTheme, colors } from '@/lib/design-tokens';
 import { fadeSlideIn, staggerContainer, staggerChild } from '@/lib/motion';
@@ -179,6 +180,9 @@ export default function Analytics() {
           </div>
         )}
       </Card.Default>
+
+      {/* 12-Stage Academic Knowledge Graph Explorer */}
+      <KnowledgeGraphExplorer />
     </motion.div>
   );
 }

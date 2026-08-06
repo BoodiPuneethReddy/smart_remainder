@@ -6,6 +6,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient } from '../../lib/api';
 import ImportModal from './ImportModal';
+import RuntimeInspector from './RuntimeInspector';
 
 interface AITutorWorkspaceProps {
   isOpen: boolean;
@@ -40,6 +41,7 @@ export default function AITutorWorkspace({
   // Master Linear Flow Step
   const [step, setStep] = useState<LinearStep>('zero_state');
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showDeveloperInspector, setShowDeveloperInspector] = useState(false);
   const [activeDocId, setActiveDocId] = useState<number | null>(propDocId || null);
 
   // Analysis Progress Steps
@@ -144,7 +146,11 @@ export default function AITutorWorkspace({
 
   const handleCreateSession = async () => {
     if (!activeDocId || !analysis) {
-      setSessionError("No active document found for analysis.");
+      setSessionError("Unable to create learning session. Reason: Document not uploaded.");
+      return;
+    }
+    if (!personality || !goal || !learningMode || !assessmentType || !difficulty || !sessionLength) {
+      setSessionError("Unable to create learning session. Reason: Validation failed. Missing required session configuration.");
       return;
     }
     setIsSubmitting(true);
@@ -178,7 +184,10 @@ export default function AITutorWorkspace({
       setStep('tutoring');
     } catch (err: any) {
       console.error("Session creation failed:", err);
-      const errMsg = err?.response?.data?.detail || "Failed to create learning session. Please try again.";
+      const detail = err?.response?.data?.detail;
+      const errMsg = detail 
+        ? (detail.startsWith("Unable to create learning session") ? detail : `Unable to create learning session. Reason: ${detail}`)
+        : `Unable to create learning session. Reason: ${err.message || 'Server error or network failure.'}`;
       setSessionError(errMsg);
     } finally {
       setIsSubmitting(false);
@@ -256,11 +265,21 @@ export default function AITutorWorkspace({
     }, 1200);
   };
 
-  const handleEndSession = () => {
+  const handleEndSession = async () => {
+    if (sessionId) {
+      try {
+        await apiClient.post('/api/assessment/end-session', { session_id: sessionId });
+      } catch (err) {
+        console.warn("End session API call notice:", err);
+      }
+    }
     // Session Lifecycle Cleanup: Purge temporary session context on exit
     setSessionId(null);
     setChatLog([]);
     setSummaryNotes(null);
+    setAnalysis(null);
+    setActiveDocId(null);
+    setStep('zero_state');
     onClose();
   };
 
@@ -286,12 +305,22 @@ export default function AITutorWorkspace({
               <p className="text-xs text-slate-400">Multi-agent orchestrator • Adaptive learning workspace</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowDeveloperInspector(true)}
+              className="px-3 py-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300 font-mono text-xs rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
+              title="Inspect Swarm Telemetry, Execution Graph & Grounding"
+            >
+              <Brain size={14} className="text-indigo-400 animate-pulse" />
+              <span>Developer Inspector</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Multi-Agent Swarm Status Banner */}
@@ -649,6 +678,12 @@ export default function AITutorWorkspace({
 
         </div>
       </div>
+
+      {/* Developer Mode Runtime Inspector Modal */}
+      <RuntimeInspector
+        isOpen={showDeveloperInspector}
+        onClose={() => setShowDeveloperInspector(false)}
+      />
 
       {/* Smart Academic Import Integration */}
       <ImportModal

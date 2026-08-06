@@ -290,6 +290,13 @@ export const remindersApi = {
 export const analyticsApi = {
   summary: () => apiClient.get<AnalyticsSummary>('/api/analytics/summary'),
   weekly: () => apiClient.get<{ weekly_data: WeeklyDataPoint[]; total_this_week: number; completed_this_week: number }>('/api/analytics/weekly'),
+  getLatestTelemetry: () => apiClient.get<any>('/api/analytics/telemetry/latest'),
+  getKnowledgeGraph: () => apiClient.get<any>('/api/analytics/knowledge-graph'),
+};
+
+export const api = {
+  getLatestTelemetry: analyticsApi.getLatestTelemetry,
+  getKnowledgeGraph: analyticsApi.getKnowledgeGraph,
 };
 
 // ── Assessment API ────────────────────────────────────────────────────────────

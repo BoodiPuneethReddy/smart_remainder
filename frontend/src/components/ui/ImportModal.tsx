@@ -155,7 +155,14 @@ export default function ImportModal({ isOpen, onClose, onSuccess, onStartLearnin
       setStep('done');
       onSuccess?.(result);
     } catch (err: any) {
-      setUploadError(err.response?.data?.detail || 'Approval failed. Please try again.');
+      const detail = err.response?.data?.detail;
+      let errorMsg = 'Approval failed. Please try again.';
+      if (typeof detail === 'string') {
+        errorMsg = detail;
+      } else if (typeof detail === 'object' && detail !== null) {
+        errorMsg = `[Stage: ${detail.stage || 'Pipeline'}] ${detail.reason || detail.exception || 'Approval failed'}`;
+      }
+      setUploadError(errorMsg);
       setStep('preview');
     }
   };
