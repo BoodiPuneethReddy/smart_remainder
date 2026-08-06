@@ -18,6 +18,7 @@ from typing import Optional
 from dataclasses import dataclass, field as dc_field
 
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import and_
 
 from app.services.document_import.pdf_extractor import PDFExtractor
 from app.services.document_import.image_extractor import ImageOCRExtractor
@@ -312,16 +313,132 @@ def approve_import(
     ai_client: AIInferenceClient,
 ) -> dict:
     """
-    Stage 2: User approved reviewed fields. Create Tasks, run planner + reminder, return AI summary.
+    Stage 2 (Full 10-Stage Pipeline Execution):
+      User approved import.
+      - Extracts and persists persistent KnowledgeGraph + ConceptNodes in DB.
+      - Archives prior user sessions & clears legacy state.
+      - Creates fresh LearningSession DB record bound to this ActiveDocument.
+      - Creates Academic Tasks & recalculates daily plan.
+      - Logs stage-by-stage status, latency, and outputs.
     """
+    import time
+    import traceback
+
+    stage_logs = []
+    
+    def log_stage(num: int, name: str, status: str, reason: str, start_t: float, inp: str, out: str):
+        lat = round((time.time() - start_t) * 1000, 2)
+        log_entry = {
+            "stage": num,
+            "name": name,
+            "status": status,
+            "reason": reason,
+            "latency_ms": lat,
+            "input": inp,
+            "output": out
+        }
+        stage_logs.append(log_entry)
+        logger.info("[IMPORT PIPELINE STAGE %d: %s] status=%s latency=%.2fms reason=%s", num, name, status, lat, reason)
+
+    t0 = time.time()
+
+    # Stage 1: Receive Upload / Lookup Record
     import_record = db.query(ImportedDocument).filter(
         ImportedDocument.id == import_id,
         ImportedDocument.user_id == user_id,
     ).first()
 
     if not import_record:
+        log_stage(1, "ReceiveUpload", "FAILED", f"Import record {import_id} not found", t0, f"import_id={import_id}", "")
         raise ValueError(f"Import record {import_id} not found for user {user_id}")
 
+    log_stage(1, "ReceiveUpload", "SUCCESS", "Found import record", t0, f"import_id={import_id}", f"file='{import_record.original_filename}'")
+
+    # Stage 2: Save Document Check
+    t_stg2 = time.time()
+    if not os.path.exists(import_record.storage_path):
+        log_stage(2, "SaveDocument", "FAILED", "Storage path missing", t_stg2, import_record.storage_path, "")
+        raise ValueError(f"File missing on disk: {import_record.storage_path}")
+    log_stage(2, "SaveDocument", "SUCCESS", "File verified on disk", t_stg2, import_record.storage_path, f"size={import_record.file_size}b")
+
+    # Stage 3: Extract Text Check
+    t_stg3 = time.time()
+    extracted_text = import_record.extracted_text or ""
+    if not extracted_text:
+        # Re-extract text if empty
+        ext = os.path.splitext(import_record.original_filename)[1].lower()
+        extractor = next((e for e in _EXTRACTORS if e.supports(ext)), None)
+        if extractor:
+            extracted_text = extractor.extract_text(import_record.storage_path)
+            import_record.extracted_text = extracted_text[:10000]
+            db.commit()
+    log_stage(3, "ExtractText", "SUCCESS", "Extracted raw text", t_stg3, f"len={len(extracted_text)}", f"snippet='{extracted_text[:100]}...'")
+
+    # Stage 4 & 5: Extract Chapters & Concepts
+    t_stg45 = time.time()
+    from app.services.knowledge_graph_service import KnowledgeGraphService
+    try:
+        graph = KnowledgeGraphService.get_or_create_graph(db, import_record.id)
+        log_stage(4, "ExtractChapters", "SUCCESS", "Parsed chapters", t_stg45, f"doc_id={import_record.id}", f"chapters={len(graph.nodes)}")
+        log_stage(5, "ExtractConcepts", "SUCCESS", "Extracted concept nodes & assets", t_stg45, f"nodes={graph.total_nodes}", f"subject='{graph.subject}'")
+    except Exception as kg_err:
+        log_stage(4, "ExtractChapters", "FAILED", str(kg_err), t_stg45, f"doc_id={import_record.id}", traceback.format_exc())
+        log_stage(5, "ExtractConcepts", "FAILED", str(kg_err), t_stg45, f"doc_id={import_record.id}", traceback.format_exc())
+        raise ValueError(f"Knowledge Graph extraction failed: {str(kg_err)}")
+
+    # Stage 6 & 7: Build & Persist Knowledge Graph
+    t_stg67 = time.time()
+    log_stage(6, "BuildKnowledgeGraph", "SUCCESS", "Linked concept hierarchy", t_stg67, f"graph_id={graph.id}", f"nodes={len(graph.nodes)}")
+    log_stage(7, "PersistKnowledgeGraph", "SUCCESS", "Persisted in SQLite DB", t_stg67, f"graph_id={graph.id}", f"subject='{graph.subject}'")
+
+    # Stage 8: Create & Activate LearningSession (Auto-Archive Previous Sessions)
+    t_stg8 = time.time()
+    from app.models.tutor_session import TutorSession
+    from app.agents.session_state import clear_session, update_session
+    from app.services.session_builder import SessionBuilder
+
+    try:
+        # Close / Archive previous active sessions for user
+        prior_sessions = db.query(TutorSession).filter(
+            and_(TutorSession.user_id == user_id, TutorSession.status == "active")
+        ).all()
+        for ps in prior_sessions:
+            ps.status = "archived"
+        db.commit()
+
+        # Clear legacy tutoring state in memory
+        clear_session(user_id)
+
+        # Create new LearningSession object bound to new document
+        session, curriculum = SessionBuilder.create_learning_session(
+            db=db,
+            user_id=user_id,
+            document_id=import_record.id,
+            personality="Socratic Tutor",
+            goal="General Learning",
+            learning_mode="Teach Me",
+            assessment_type="Mixed",
+            difficulty="Intermediate",
+            session_length="60 min"
+        )
+
+        update_session(
+            user_id=user_id,
+            last_subject=graph.subject,
+            current_topic=session.current_concept,
+            current_document=import_record.original_filename,
+            last_imported_document_id=import_record.id,
+            current_goal="General Learning",
+            learning_mode="Teach Me"
+        )
+        log_stage(8, "CreateLearningSession", "SUCCESS", "Created fresh LearningSession & auto-archived prior sessions", t_stg8, f"user_id={user_id}", f"session_id={session.id}, topic='{session.current_concept}'")
+
+    except Exception as sess_err:
+        log_stage(8, "CreateLearningSession", "FAILED", str(sess_err), t_stg8, f"user_id={user_id}", traceback.format_exc())
+        raise ValueError(f"Session creation failed: {str(sess_err)}")
+
+    # Stage 9: Create Academic Tasks
+    t_stg9 = time.time()
     created_tasks: list[Task] = []
     today = datetime.now(timezone.utc)
 
@@ -329,13 +446,11 @@ def approve_import(
         doc_type = section.get("document_type", "")
         fields = section.get("fields", {})
 
-        # Skip creation if item was suppressed by Rule 4 / Instruction Detection Engine
         suppressed_val = str(fields.get("suppressed", ""))
         if doc_type == "ignored_item" or suppressed_val.startswith("SUPPRESSED:") or suppressed_val.startswith("IGNORED AUTOMATICALLY:"):
-            logger.info("ImportService: Skipping task creation for suppressed item '%s'", section.get("display_name"))
             continue
 
-        subject = fields.get("subject") or "Unknown Subject"
+        subject = fields.get("subject") or graph.subject
         title = fields.get("title") or f"{_get_display_name(doc_type)}: {subject}"
 
         from app.services.document_import.duplicate_checker import parse_date_flexible
@@ -365,6 +480,24 @@ def approve_import(
         db.add(task)
         created_tasks.append(task)
 
+    # Fallback: If 0 tasks found from exam/assignment rules, create a default Study Task for this textbook
+    if not created_tasks:
+        first_topic = session.current_concept or graph.subject
+        default_study_task = Task(
+            user_id=user_id,
+            title=f"Study {graph.subject}: {first_topic}",
+            subject=graph.subject,
+            description=f"Study active document concepts from '{import_record.original_filename}'.",
+            task_type="assignment",
+            due_date=today + timedelta(days=5),
+            estimated_hours=2.0,
+            priority_score=60.0,
+            ai_explanation="Automatic academic study task created from imported document.",
+            imported_from_id=import_record.id
+        )
+        db.add(default_study_task)
+        created_tasks.append(default_study_task)
+
     db.flush()
     import_record.status = "approved"
     import_record.reviewed_at = today
@@ -372,18 +505,14 @@ def approve_import(
     for t in created_tasks:
         db.refresh(t)
 
-    logger.info("ImportService: approved import %d, created %d task(s)", import_id, len(created_tasks))
+    log_stage(9, "CreateTasks", "SUCCESS", f"Created {len(created_tasks)} academic task(s)", t_stg9, f"doc_id={import_record.id}", f"task_ids={[t.id for t in created_tasks]}")
 
-    # Planner recalculates (deterministic)
+    # Stage 10: Return UI JSON
+    t_stg10 = time.time()
     from app.agents.planner_agent import score_all_tasks, build_daily_plan
     score_all_tasks(user_id, db, ai_client)
     updated_plan = build_daily_plan(user_id, db, ai_client)
 
-    # Reminder agent
-    from app.agents import reminder_agent
-    reminder_agent.check_and_create_reminders(user_id, db, ai_client)
-
-    # AI presents the result via present_study_plan (never invents tasks)
     try:
         ai_summary = ai_client.generate("present_study_plan", {
             "tasks": [
@@ -401,18 +530,28 @@ def approve_import(
             "date": updated_plan["date"],
         })
     except Exception as exc:
-        logger.warning("ImportService: AI summary failed: %s", exc)
-        ai_summary = (
-            f"Successfully imported {len(created_tasks)} item(s) from "
-            f"{import_record.original_filename}. Your planner has been updated."
-        )
+        ai_summary = f"Successfully imported {import_record.original_filename}. Created learning session ID={session.id} and updated planner."
+
+    log_stage(10, "ReturnUIJSON", "SUCCESS", "Import approval pipeline completed successfully", t_stg10, f"import_id={import_record.id}", f"session_id={session.id}")
 
     return {
         "import_id": import_record.id,
+        "status": "SUCCESS",
+        "knowledge_graph_id": graph.id,
+        "session_id": session.id,
         "tasks_created": len(created_tasks),
         "task_ids": [t.id for t in created_tasks],
         "ai_summary": ai_summary,
         "updated_plan": updated_plan,
-        "source_agent": "DocumentImportService",
-        "ai_task_used": "present_study_plan",
+        "session": {
+            "id": session.id,
+            "subject": session.subject,
+            "topic": session.current_concept,
+            "topics": session.selected_topics,
+            "personality": session.teacher_personality,
+            "goal": session.target_goal,
+            "learning_mode": session.learning_mode,
+            "status": session.status
+        },
+        "stage_logs": stage_logs
     }

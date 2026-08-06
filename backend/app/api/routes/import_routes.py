@@ -138,9 +138,11 @@ def approve_document_import(
     ai_client: AIInferenceClient = Depends(get_ai_client),
 ):
     """
-    Stage 2: User reviewed and approved fields. Create tasks, run planner+reminder, get AI summary.
-    Nothing was saved before this call — this is the gate.
+    Stage 2: User reviewed and approved fields.
+    Executes full 10-stage import pipeline (KnowledgeGraph, LearningSession, Tasks, Daily Plan).
+    Returns explicit diagnostic details if any stage fails.
     """
+    import traceback
     try:
         result = approve_import(
             import_id=body.import_id,
@@ -149,15 +151,31 @@ def approve_document_import(
             db=db,
             ai_client=ai_client,
         )
+        return result
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+        logger.error("Import approval validation failure: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "stage": "ApprovalValidation",
+                "status": "FAILED",
+                "reason": str(exc),
+                "exception": exc.__class__.__name__,
+                "trace": traceback.format_exc()
+            }
+        )
     except Exception as exc:
         logger.error("Import approve failed: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Import approval failed. Please try again.",
+            detail={
+                "stage": "PipelineExecution",
+                "status": "FAILED",
+                "reason": str(exc),
+                "exception": exc.__class__.__name__,
+                "trace": traceback.format_exc()
+            }
         )
-    return result
 
 
 @router.get("/history")
