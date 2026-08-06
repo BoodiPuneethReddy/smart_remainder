@@ -19,10 +19,20 @@ class ConceptNode(BaseModel):
     summary: str
     difficulty: int = Field(default=1, ge=1, le=6)
     prerequisites: List[str] = Field(default_factory=list)
+    definitions: List[Dict[str, str]] = Field(default_factory=list)  # [{"term": "3NF", "definition": "..."}]
+    examples: List[str] = Field(default_factory=list)
     has_code: bool = False
     has_formulas: bool = False
     formulas: List[str] = Field(default_factory=list)
     code_snippets: List[str] = Field(default_factory=list)
+    parents: List[str] = Field(default_factory=list)
+    children: List[str] = Field(default_factory=list)
+
+
+class ScoredConceptNode(BaseModel):
+    rank_position: int
+    similarity_score: float  # e.g., 94.5%
+    node: ConceptNode
 
 
 class KnowledgeGraphModel(BaseModel):

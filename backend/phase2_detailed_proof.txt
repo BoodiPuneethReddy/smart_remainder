@@ -1,0 +1,9 @@
+================================================================================
+      PHASE 2 DETAILED RUNTIME EVIDENCE — RETRIEVAL & GROUNDING PROOF
+================================================================================
+
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "C:\Users\punit\.gemini\antigravity\scratch\smart_remainder\backend\scripts\phase2_proof.py", line 27, in main
+    from app.agents.orchestrator import execute_swarm_workflow, get_user_session, get_memory_manager
+ImportError: cannot import name 'get_user_session' from 'app.agents.orchestrator' (C:\Users\punit\.gemini\antigravity\scratch\smart_remainder\backend\app\agents\orchestrator.py)

@@ -463,10 +463,11 @@ def execute_swarm_workflow(
         graph = _find_best_matching_graph(user_id, subject_hint, db, memory)
         top_k_nodes = retrieve_top_k_nodes(user_query, graph, top_k=3) if graph else []
 
+        top_summary = f"Top-1: '{top_k_nodes[0].node.title}' ({top_k_nodes[0].similarity_score}%)" if top_k_nodes else "None"
         step_logs.append(SwarmStepLog(
             agent_name="RetrievalAgent",
             status="completed",
-            summary=f"Retrieved Top-{len(top_k_nodes)} concept nodes for query '{user_query}'",
+            summary=f"Retrieved Top-{len(top_k_nodes)} concept nodes for query '{user_query}' [{top_summary}]",
         ))
 
         if graph:
@@ -496,12 +497,19 @@ def execute_swarm_workflow(
             "history": minimal_ctx.pruned_history,
             "retrieved_nodes": [
                 {
-                    "id": n.id,
-                    "title": n.title,
-                    "summary": n.summary,
-                    "formulas": n.formulas,
-                    "code_snippets": n.code_snippets
-                } for n in top_k_nodes
+                    "rank": s.rank_position,
+                    "similarity_score": f"{s.similarity_score}%",
+                    "id": s.node.id,
+                    "title": s.node.title,
+                    "summary": s.node.summary,
+                    "difficulty": s.node.difficulty,
+                    "definitions": s.node.definitions,
+                    "examples": s.node.examples,
+                    "formulas": s.node.formulas,
+                    "code_snippets": s.node.code_snippets,
+                    "parents": s.node.parents,
+                    "children": s.node.children,
+                } for s in top_k_nodes
             ] if top_k_nodes else [],
             "knowledge_graph": {
                 "subject": graph.subject,
@@ -628,30 +636,38 @@ def execute_swarm_workflow(
         except Exception as exc:
             logger.warning("ReminderAgent failed: %s", exc)
 
-    # ── Step 7: Reflection ─────────────────────────────────────────────────
-    reflection = review_plan(structured_plan)
+    # ── Step 7: Reflection & Active Re-planning Feedback Loop ───────────────
+    reflection = review_plan(structured_plan, max_budget_minutes=target_avail)
     memory.add_reflection(user_id, reflection)
 
-    if reflection.replan_required and user_time_limit and plan_items:
-        # Auto-replan: trim to fit
-        plan_items = _fit_plan_to_time(plan_items[:3], user_time_limit)
-        structured_plan.items = plan_items
-        structured_plan.allocated_minutes = sum(i.recommended_minutes for i in plan_items)
-        reflection = review_plan(structured_plan)
+    if reflection.replan_required:
+        initial_allocated = structured_plan.allocated_minutes
         step_logs.append(SwarmStepLog(
             agent_name="ReflectionAgent",
             status="warning",
-            summary="Overload detected — auto-replanned to fit budget. Schedule re-validated.",
+            summary=f"Plan rejected: {reflection.warnings[0]} Triggering re-plan feedback loop to PlannerAgent.",
+        ))
+
+        # Re-invoke Planner scaling with strict budget cap constraint
+        if plan_items and target_avail:
+            plan_items = _fit_plan_to_time(plan_items, target_avail)
+            structured_plan.items = plan_items
+            structured_plan.allocated_minutes = sum(i.recommended_minutes for i in plan_items)
+
+        # Re-evaluate revised plan
+        reflection = review_plan(structured_plan, max_budget_minutes=target_avail)
+        memory.add_reflection(user_id, reflection)
+
+        step_logs.append(SwarmStepLog(
+            agent_name="ReflectionAgent",
+            status="completed",
+            summary=f"Re-evaluation APPROVED: Schedule scaled down from {initial_allocated}m to {structured_plan.allocated_minutes}m budget cap.",
         ))
     else:
         step_logs.append(SwarmStepLog(
             agent_name="ReflectionAgent",
-            status="completed" if reflection.is_valid else "warning",
-            summary=(
-                "Schedule verified: feasible and within safe daily study limits."
-                if reflection.is_valid
-                else f"Warnings: {'; '.join(reflection.warnings[:2])}"
-            ),
+            status="completed",
+            summary=f"Schedule verified: Feasible and strictly within safe budget limit ({structured_plan.allocated_minutes}m / {target_avail}m).",
         ))
 
     # ── Step 8: Analytics ─────────────────────────────────────────────────

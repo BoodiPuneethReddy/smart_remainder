@@ -157,7 +157,7 @@ def build_execution_graph(
             ))
 
     # 4. Study Planning / Schedule Constraint
-    elif intent in (Intent.STUDY_PLANNING, Intent.SCHEDULE_CONSTRAINT, Intent.PRIORITY_CALCULATION):
+    elif intent in (Intent.STUDY_PLANNING, Intent.SCHEDULE_CONSTRAINT, Intent.LEARNING_ANALYTICS):
         if has_document:
             active_agents.extend(["RetrievalAgent", "DocumentAgent"])
         else:
