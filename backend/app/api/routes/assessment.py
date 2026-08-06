@@ -26,6 +26,7 @@ from app.models.learning_objective import LearningObjective
 from app.services.tutor_service import TutorService
 from app.agents import learning_agent
 from app.services.ai_client import AIInferenceClient
+from app.agents.session_state import clear_session, update_session
 
 logger = logging.getLogger(__name__)
 
@@ -736,6 +737,10 @@ def analyze_learning_document(
     )
 
 
+class EndSessionRequest(BaseModel):
+    session_id: int
+
+
 @router.post("/create-session")
 def create_linear_session(
     req: CreateLinearSessionRequest,
@@ -743,39 +748,90 @@ def create_linear_session(
     current_user: User = Depends(get_current_user),
     ai_client: AIInferenceClient = Depends(get_ai_client_dep),
 ):
+    # Step 1: Validate User Selections
+    if not req.document_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Unable to create learning session. Reason: Document not uploaded."
+        )
+
+    if not req.personality or not req.goal or not req.learning_mode or not req.assessment_type or not req.difficulty:
+        raise HTTPException(
+            status_code=422,
+            detail="Unable to create learning session. Reason: Validation failed. Missing required session configuration."
+        )
+
+    # Step 2: Load Active Uploaded Document
     doc = db.query(ImportedDocument).filter(
         and_(ImportedDocument.id == req.document_id, ImportedDocument.user_id == current_user.id)
     ).first()
+
     if not doc:
-        raise HTTPException(status_code=404, detail="Document not found.")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unable to create learning session. Reason: Document not uploaded (Document ID {req.document_id} not found)."
+        )
 
-    has_edu, subj, topics, pages, est_min, q_count = extract_topics_from_text(
-        doc.extracted_text or "", doc.original_filename
-    )
+    # Step 3: Build Document Knowledge Graph & Extract Topics
+    try:
+        has_edu, subj, topics, pages, est_min, q_count = extract_topics_from_text(
+            doc.extracted_text or "", doc.original_filename
+        )
+    except Exception as ext_err:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to create learning session. Reason: Knowledge graph extraction failed ({str(ext_err)})."
+        )
 
-    if not has_edu:
-        raise HTTPException(status_code=400, detail="This document contains schedules/tasks but not enough educational content for an AI learning session. Upload lecture notes or textbooks to begin AI tutoring.")
+    if not has_edu or not topics:
+        raise HTTPException(
+            status_code=400,
+            detail="Unable to create learning session. Reason: Knowledge graph extraction failed. No educational concept nodes found in uploaded document."
+        )
 
-    first_topic = topics[0] if topics else f"Complete Document Study ({doc.original_filename})"
+    # Step 4: Isolate Session & Purge Legacy Document Memory
+    clear_session(current_user.id)
 
-    session = TutorService.initialize_session(
-        db=db,
-        ai_client=ai_client,
+    first_topic = topics[0] if topics else f"Complete Study ({doc.original_filename})"
+
+    # Step 5: Create & Persist LearningSession object
+    try:
+        session = TutorService.initialize_session(
+            db=db,
+            ai_client=ai_client,
+            user_id=current_user.id,
+            subject=subj,
+            topic=first_topic,
+            difficulty_level=1,
+            assessment_type=req.assessment_type,
+            target_goal=req.goal,
+            teacher_personality=req.personality,
+            learning_mode=req.learning_mode,
+            document_id=req.document_id
+        )
+    except Exception as db_err:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to create learning session. Reason: Database error ({str(db_err)})."
+        )
+
+    # Step 6: Initialize Tutor State & Set Active Document Session
+    update_session(
         user_id=current_user.id,
-        subject=subj,
-        topic=first_topic,
-        difficulty_level=1,
-        assessment_type=req.assessment_type,
-        target_goal=req.goal,
-        teacher_personality=req.personality,
-        learning_mode=req.learning_mode,
-        document_id=req.document_id
+        last_subject=subj,
+        current_topic=first_topic,
+        current_document=doc.original_filename,
+        last_imported_document_id=doc.id,
+        current_goal=req.goal,
+        current_strategy=req.learning_mode,
+        mastery_level=req.difficulty
     )
 
     first_msg = db.query(TutorMessage).filter(TutorMessage.session_id == session.id).first()
     first_question = first_msg.content if first_msg else f"Welcome to your AI study session for **{subj}**!"
 
     return {
+        "status": "SUCCESS",
         "session_id": session.id,
         "subject": subj,
         "filename": doc.original_filename,
@@ -783,10 +839,34 @@ def create_linear_session(
         "goal": req.goal,
         "learning_mode": req.learning_mode,
         "assessment_type": req.assessment_type,
+        "difficulty": req.difficulty,
+        "session_length": req.session_length,
         "topics": topics,
         "total_topics": len(topics),
         "estimated_minutes": est_min,
         "current_topic_index": 0,
         "current_state": "WAITING_FOR_ANSWER",
         "first_question": first_question
+    }
+
+
+@router.post("/end-session")
+def end_learning_session(
+    req: EndSessionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    session = db.query(TutorSession).filter(
+        and_(TutorSession.id == req.session_id, TutorSession.user_id == current_user.id)
+    ).first()
+    if session:
+        session.status = "completed"
+        db.commit()
+
+    # Destroy temporary document-specific session state
+    clear_session(current_user.id)
+
+    return {
+        "status": "SESSION_DESTROYED",
+        "message": "Learning session completed & destroyed cleanly. Temporary document-specific memory purged."
     }

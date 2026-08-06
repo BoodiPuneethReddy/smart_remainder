@@ -3,10 +3,13 @@ services/tutor_service.py — AI Tutor workflow service with 4-dimensional promp
 """
 
 import json
+import logging
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import and_
+
+logger = logging.getLogger(__name__)
 
 from app.models.tutor_session import TutorSession, TutorMessage, TutorMessageChunk
 from app.models.learning_objective import LearningObjective
@@ -224,8 +227,15 @@ class TutorService:
             "learning_objectives": learning_objs,
             "question_bank": question_bank
         }
-        
-        init_reply = ai_client.generate("tutor_init_prompt", prompt_ctx)
+        try:
+            init_reply = ai_client.generate("tutor_init_prompt", prompt_ctx)
+        except Exception as ai_exc:
+            logger.warning("TutorService: AI client init prompt notice: %s", ai_exc)
+            init_reply = (
+                f"Welcome to your AI study session for **{subject}**! 👋\n\n"
+                f"I am your **{teacher_personality}**. Today we will explore **{topic}** under your **{target_goal}** goal.\n\n"
+                f"To start off: What is your current familiarity with **{topic}**?"
+            )
         
         msg = TutorMessage(
             session_id=session.id,
