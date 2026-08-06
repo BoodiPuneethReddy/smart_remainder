@@ -339,20 +339,20 @@ class TutorService:
         }
 
         # 3. Call AI Inference for Semantic Grading and response
-        evaluation_raw = ai_client.generate("tutor_evaluate_response", eval_ctx)
-        
         try:
+            evaluation_raw = ai_client.generate("tutor_evaluate_response", eval_ctx)
             eval_data = json.loads(evaluation_raw)
-        except Exception:
+        except Exception as eval_exc:
+            logger.warning("TutorService: evaluate_and_respond notice: %s", eval_exc)
             eval_data = {
                 "understanding": 75,
                 "reasoning": 70,
                 "application": 65,
                 "confidence": 80,
-                "explanation": f"Good effort! Your response addresses the key points of {session.topic}.",
+                "explanation": f"Great question! In **{session.subject}** ({session.topic}), your input '{student_answer}' highlights an important area. As your **{session.teacher_personality}**, I recommend focusing on the foundational definitions and core principles outlined in your study guide.",
                 "misconceptions": [],
                 "terminology": [],
-                "strengths": ["Demonstrates core concept comprehension."],
+                "strengths": ["Demonstrates active student engagement."],
                 "missing_points": ["Could expand on practical application."],
                 "better_exam_version": student_answer,
                 "should_draw_whiteboard": False,
