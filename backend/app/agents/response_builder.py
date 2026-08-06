@@ -41,129 +41,56 @@ def build_final_response(
     history: Optional[list] = None,
 ) -> str:
     """
-    Builds a clean, human, conversational academic response.
-    Completely free of robotic agent names or static machine headers.
+    Builds a clean, human, conversational AI Coach response.
+    - Friendly, short, and productivity focused.
+    - Zero machine telemetry headers, agent logs, or raw stats dumps.
+    - Automatically redirects learning requests to Tutor Mode.
     """
-    intent = result.primary_intent or "unknown"
-    lctx = learning_ctx or {}
+    intent = (result.primary_intent or "unknown").lower()
+    q_lower = user_query.lower().strip()
 
-    # If Gemini or AI Client generated a custom mentor explanation in result, prefer it
-    if hasattr(result, "custom_nl_response") and result.custom_nl_response:
-        return result.custom_nl_response
+    # ── 1. Learning Request Handoff to AI Tutor ──────────────────────────────
+    learning_triggers = ["explain", "teach me", "quiz me", "revise", "bcnf", "normalization", "interview questions", "start learning", "what is", "how does"]
+    if intent in ("tutor", "information_query") or any(kw in q_lower for kw in learning_triggers):
+        return "Opening Tutor Mode... 🎓 Launching your dedicated learning workspace..."
 
-    # ─── GREETING / CASUAL ────────────────────────────────────────────────────
-    if intent in ("greeting", "casual", "small_talk"):
-        return _build_natural_greeting(result, lctx)
+    # ── 2. Greetings ──────────────────────────────────────────────────────────
+    if intent in ("greeting", "casual", "small_talk") or any(kw in q_lower for kw in ["hi", "hello", "hey", "good morning", "good afternoon"]):
+        return "Hi! 👋 Welcome back! What would you like to work on today?"
 
-    # ─── TUTOR / INFORMATION QUERY ────────────────────────────────────────────
-    if intent in ("tutor", "information_query"):
-        return _build_natural_tutor(result, user_query, lctx)
+    # ── 3. Goodbyes ───────────────────────────────────────────────────────────
+    if intent == "goodbye" or any(kw in q_lower for kw in ["bye", "goodbye", "see you", "cya", "later"]):
+        return "See you later! Keep up the great work. 😊"
 
-    # ─── LEARNING ANALYTICS ───────────────────────────────────────────────────
-    if intent == "learning_analytics":
-        return _build_natural_analytics(result, lctx)
+    # ── 4. Gratitude ──────────────────────────────────────────────────────────
+    if intent == "gratitude" or any(kw in q_lower for kw in ["thank you", "thanks", "thx", "appreciate"]):
+        return "You're very welcome! Let me know whenever you're ready to plan your next session. 😊"
 
-    # ─── MOTIVATION ───────────────────────────────────────────────────────────
-    if intent == "motivation":
-        return _build_natural_motivation(result, lctx)
+    # ── 5. Task Completion ───────────────────────────────────────────────────
+    if intent == "task_completion" or "completed all" in q_lower or "finished all" in q_lower or "done with all" in q_lower:
+        return "🎉 Awesome work! You completed everything on today's schedule. That's excellent consistency. Enjoy the rest of your day—you've earned it!"
 
-    # ─── STUDY PLANNING / SCHEDULE ────────────────────────────────────────────
-    return _build_natural_study_plan(result, user_query, lctx)
+    # ── 6. Low Energy / Motivation ───────────────────────────────────────────
+    if "don't want to study" in q_lower or "not in the mood" in q_lower or "feeling lazy" in q_lower or intent == "motivation":
+        return "That's okay. Everyone has off days. Even spending just 15 minutes reviewing something keeps your momentum alive. Small progress is still progress."
 
+    # ── 7. Extra Time ─────────────────────────────────────────────────────────
+    if "extra time" in q_lower or "free time" in q_lower:
+        return "Great! Since you have extra time, I'd recommend opening Tutor Mode and studying another topic while you're fresh."
 
-def _build_natural_greeting(result: SwarmExecutionResult, lctx: Dict) -> str:
-    lines = ["Hello! Welcome back to your study session. 👋", ""]
-    if result.analytics:
-        lines.append(f"• **Current Task Completion:** {result.analytics.completion_rate:.0f}%")
-        lines.append(f"• **Predicted Exam Readiness:** {result.analytics.predicted_exam_readiness:.0f}%")
-    if lctx.get("has_learning_data"):
-        avg_m = lctx.get("avg_mastery", 50)
-        lines.append(f"• **Average Mastery:** {avg_m:.0f}% ({_mastery_label(avg_m)})")
-        weak = lctx.get("weak_topics", [])
-        if weak:
-            lines.append(f"• **Focus Topics:** {', '.join(w['topic'] for w in weak[:2])}")
-        lines.append("")
-
-    lines.append("What would you like to accomplish today? Ask me to explain a concept, build a custom schedule, or review your weak topics.")
-    return "\n".join(lines)
-
-
-def _build_natural_tutor(result: SwarmExecutionResult, query: str, lctx: Dict) -> str:
-    lines = []
-    if result.knowledge_graph and result.knowledge_graph.concepts:
-        g = result.knowledge_graph
-        query_lower = query.lower()
-        best_concept = None
-        for c in g.concepts:
-            if c.title.lower() in query_lower:
-                best_concept = c
-                break
-        if not best_concept:
-            best_concept = g.concepts[0]
-
-        lines.append(f"### {best_concept.title}")
-        lines.append(best_concept.summary)
-        lines.append("")
-        if best_concept.prerequisites:
-            lines.append(f"**Prerequisites to keep in mind:** {', '.join(best_concept.prerequisites[:3])}")
-    else:
-        lines.append(f"Here is what you need to know regarding **{query}**:")
-        lines.append("This concept is foundational. Let's break down the key principles step-by-step.")
-
-    return "\n".join(lines)
-
-
-def _build_natural_analytics(result: SwarmExecutionResult, lctx: Dict) -> str:
-    lines = ["### 📊 Learning Progress Summary", ""]
-    if result.analytics:
-        a = result.analytics
-        lines.append(f"• **Task Completion:** {a.completion_rate:.0f}%")
-        lines.append(f"• **Predicted Readiness:** {a.predicted_exam_readiness:.0f}%")
-        lines.append(f"• **Burnout Status:** {a.burnout_risk_level.title()}")
-        lines.append("")
-
-    if lctx.get("has_learning_data"):
-        lines.append(f"• **Average Mastery:** {lctx['avg_mastery']:.0f}% ({_mastery_label(lctx['avg_mastery'])})")
-        lines.append(f"• **Average Retention:** {lctx['avg_retention']:.0f}%")
-        lines.append("")
-
-    if lctx.get("weak_topics"):
-        lines.append("**Key Areas for Improvement:**")
-        for w in lctx["weak_topics"][:3]:
-            lines.append(f"• {w['topic']} ({w['mastery']:.0f}% mastery)")
-
-    return "\n".join(lines)
-
-
-def _build_natural_motivation(result: SwarmExecutionResult, lctx: Dict) -> str:
-    lines = ["### 💪 Performance Check-In", ""]
-    if result.analytics:
-        a = result.analytics
-        lines.append(f"You're at **{a.completion_rate:.0f}% task completion**.")
-        if a.burnout_risk_level == "high":
-            lines.append("Take a short break—quality study time is better than pushing through exhaustion.")
-        else:
-            lines.append("Consistent, focused blocks will get you to 100% exam readiness.")
-    return "\n".join(lines)
-
-
-def _build_natural_study_plan(result: SwarmExecutionResult, query: str, lctx: Dict) -> str:
-    lines = []
+    # ── 8. Study Planning / Scheduling ────────────────────────────────────────
     if result.plan and result.plan.items:
         p = result.plan
         avail = p.available_minutes
         avail_str = f"{avail // 60}h {avail % 60}m" if avail >= 60 else f"{avail}m"
-        lines.append(f"Here is your recommended study plan for **{avail_str}**:")
-        lines.append("")
+        lines = [f"Here is your optimized schedule for today ({avail_str} total):", ""]
 
-        for i, item in enumerate(p.items, 1):
+        for i, item in enumerate(p.items[:3], 1):
             mins_str = f"{item.recommended_minutes // 60}h {item.recommended_minutes % 60}m" if item.recommended_minutes >= 60 else f"{item.recommended_minutes}m"
             lines.append(f"{i}. **{item.title}** ({item.subject}) — `{mins_str}`")
-            if item.ai_explanation:
-                lines.append(f"   _{item.ai_explanation}_")
-        lines.append("")
-        lines.append(f"**Action Plan:** Start with **{p.items[0].title}** to tackle high-priority topics first.")
-    else:
-        lines.append("I can help you build a personalized study schedule. Let me know how much time you have today (e.g. 'I have 2 hours') or upload your course materials.")
 
-    return "\n".join(lines)
+        lines.append("")
+        lines.append(f"Focus first on **{p.items[0].title}**. Let me know if you'd like to adjust this!")
+        return "\n".join(lines)
+
+    return "I'm your AI Study Coach! I can help you plan your daily schedule, manage your tasks, and keep you motivated. For studying or learning topics, ask me to open Tutor Mode!"

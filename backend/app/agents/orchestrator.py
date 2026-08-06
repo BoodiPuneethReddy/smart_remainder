@@ -819,19 +819,7 @@ def execute_swarm_workflow(
         skipped_agents=exec_graph.skipped_agents,
     )
 
-    if primary_intent_value == "greeting":
-        result.formatted_response = (
-            "Hi Puneeth! Welcome back. 👋\n\n"
-            "Ready to continue Database Management Systems, or would you like to study something new today?"
-        )
-    else:
-        try:
-            custom_response = ai_client.generate("chat_answer", {"raw_prompt": grounded_prompt, **context_payload})
-            if custom_response and len(custom_response.strip()) > 10:
-                result.custom_nl_response = custom_response.strip()
-        except Exception as exc:
-            logger.warning("Orchestrator: Gemini NL generation notice: %s", exc)
-        result.formatted_response = build_final_response(result, user_query, learning_ctx)
+    result.formatted_response = build_final_response(result, user_query, learning_ctx)
 
     session.add_turn(user_query, result.formatted_response, primary_intent_value)
 

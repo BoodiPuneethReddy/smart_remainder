@@ -18,11 +18,11 @@ import { getPriorityColor } from '@/lib/design-tokens';
 import { format } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
 import ImportModal from '@/components/ui/ImportModal';
-import AgentPipelineTrace from '@/components/ui/AgentPipelineTrace';
+import AITutorWorkspace from '@/components/ui/AITutorWorkspace';
 
 // ── Chat message bubble ────────────────────────────────────────────────────────
 function ChatBubble({
-  role, text, time, stepLogs, intent
+  role, text, time, intent
 }: {
   role: 'user' | 'ai';
   text: string;
@@ -45,29 +45,12 @@ function ChatBubble({
         {role === 'ai' && (
           <div className="flex items-center gap-1.5 mb-1.5">
             <Sparkles size={12} style={{ color: 'var(--priority-medium)' }} />
-            <span className="text-caption font-medium" style={{ color: 'var(--priority-medium)' }}>AI Study OS</span>
-            {intent && (
-              <span style={{
-                fontSize: '0.60rem',
-                padding: '1px 5px',
-                borderRadius: '4px',
-                background: 'rgba(99,102,241,0.15)',
-                color: 'rgba(99,102,241,0.9)',
-                fontWeight: 600,
-              }}>
-                {intent.replace(/_/g, ' ')}
-              </span>
-            )}
+            <span className="text-caption font-medium" style={{ color: 'var(--priority-medium)' }}>AI Study Coach</span>
           </div>
         )}
         <p className="text-body-sm leading-relaxed whitespace-pre-wrap">{text}</p>
         {time && <p className="text-[11px] opacity-50 mt-1">{time}</p>}
       </div>
-      {role === 'ai' && stepLogs && stepLogs.length > 0 && (
-        <div className="mr-4 w-full max-w-[85%]">
-          <AgentPipelineTrace stepLogs={stepLogs} intent={intent} />
-        </div>
-      )}
     </motion.div>
   );
 }
@@ -75,9 +58,9 @@ function ChatBubble({
 // ── Suggestion chips ──────────────────────────────────────────────────────────
 const SUGGESTIONS = [
   "What should I study today?",
-  "Which subject needs the most attention?",
-  "How can I improve my completion rate?",
-  "Create a study schedule for this week",
+  "I have 2 hours available today",
+  "Reschedule my tasks for tomorrow",
+  "I completed all my tasks today",
 ];
 
 export default function AIPlanner() {
@@ -87,13 +70,13 @@ export default function AIPlanner() {
     role: 'user' | 'ai';
     text: string;
     time: string;
-    stepLogs?: StepLog[];
     intent?: string;
   }>>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
   const [chatFile, setChatFile] = useState<File | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [showAssessment, setShowAssessment] = useState(false);
 
   const { data: plan, isLoading: planLoading } = useQuery({
     queryKey: ['planner', 'daily'],
@@ -126,9 +109,12 @@ export default function AIPlanner() {
         role: 'ai',
         text: data.answer,
         time,
-        stepLogs: data.step_logs,
         intent: data.primary_intent,
       }]);
+
+      if (data.answer?.includes('Opening Tutor Mode') || data.primary_intent === 'tutor') {
+        setTimeout(() => setShowAssessment(true), 600);
+      }
     },
   });
 
