@@ -1,5 +1,5 @@
 ================================================================================
-  PHASE 4 GROUNDED GEMINI REASONING ENGINE & TELEMETRY REPORT — 12 SCENARIOS
+  PHASE 4 FINAL GROUNDED GEMINI REASONING ENGINE & TELEMETRY REPORT (12 SCENARIOS)
 ================================================================================
 
 
@@ -20,42 +20,45 @@ IntentAgent -> ContextAgent
 
 3. SHARED MEMORY EVOLUTION:
   • Memory BEFORE: {"last_intent": null, "last_subject": null, "current_topic": null, "current_goal": "Mastery", "mastery_level": "Intermediate", "history_turn_count": 0}
-  • Memory AFTER:  {"last_intent": "greeting", "last_subject": null, "current_topic": null, "current_goal": "Mastery", "mastery_level": "Intermediate", "history_turn_count": 1, "latest_query": "Hi"}
+  • Memory AFTER:  {"last_intent": "greeting", "last_subject": null, "current_topic": null, "current_goal": "Mastery", "mastery_level": "Intermediate", "history_turn_count": 1, "latest_query": "Hi", "last_explanation": null}
 
-4. RETRIEVED KNOWLEDGE NODES & CITATION METADATA:
-  • No active document knowledge nodes retrieved (Conversational / Scheduling Intent).
+4. TOP-5 RETRIEVED KNOWLEDGE NODES & CITATION METADATA:
+  • No active document knowledge nodes retrieved (Conversational Intent).
 
-5. AGENT STEP TELEMETRY (DYNAMIC LATENCY & MEMORY TRACE):
-  • [IntentAgent] Status: COMPLETED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+5. AGENT STEP TELEMETRY (PER-AGENT LATENCY BREAKDOWN):
+  • [IntentAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
     Summary: Classified intent: 'greeting'
-  • [RetrievalAgent] Status: SKIPPED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+  • [RetrievalAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
     Summary: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
-  • [DocumentAgent] Status: SKIPPED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+  • [DocumentAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
     Summary: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
-  • [StrategyAgent] Status: SKIPPED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+  • [StrategyAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
     Summary: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
-  • [PlannerAgent] Status: SKIPPED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+  • [PlannerAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
     Summary: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
-  • [ReflectionAgent] Status: SKIPPED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+  • [ReflectionAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
     Summary: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
-  • [ReminderAgent] Status: SKIPPED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+  • [ReminderAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
     Summary: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
-  • [AnalyticsAgent] Status: SKIPPED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+  • [AnalyticsAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
     Summary: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
-  • [TutorAgent] Status: SKIPPED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+  • [TutorAgent] Status: SKIPPED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
     Summary: Query intent 'greeting' is conversational; skipping heavy reasoning and scheduling steps.
-  • [ContextAgent] Status: COMPLETED | Confidence: 1.00 | Memory Read: [] | Memory Written: []
+  • [ContextAgent] Status: COMPLETED | Confidence: 1.00 | Latency: 0.00ms | Memory Read: [] | Memory Written: []
     Summary: Pruned conversation history to 0 turns for intent 'greeting'
 
-6. GROUNDING TELEMETRY REPORT (FACTUAL ORIGINS):
+6. DYNAMIC CONFIDENCE ESTIMATION: 1.00 (Calculated strictly over executed agents)
+   MEASURED WORKFLOW LATENCY: 9913.65 ms
+
+7. GROUNDING TELEMETRY REPORT (FACTUAL ORIGINS & CITATIONS):
 {
   "knowledge_nodes_used": [],
+  "used_definitions": [],
+  "used_examples": [],
+  "used_sql_examples": [],
+  "used_formulas": [],
   "planner_fields_used": [],
-  "analytics_used": [
-    "completion_rate",
-    "burnout_risk_level",
-    "predicted_exam_readiness"
-  ],
+  "analytics_used": [],
   "memory_used": [
     "last_subject",
     "current_topic",
@@ -64,10 +67,7 @@ IntentAgent -> ContextAgent
   ]
 }
 
-7. DYNAMIC CONFIDENCE ESTIMATION: 0.69 (Calculated from Retrieval Quality & Plan Fit)
-   MEASURED WORKFLOW LATENCY: 10223.08 ms
-
-8. EXACT PROMPT SENT TO GEMINI (MINIMIZED GROUNDED STRUCTURE):
+8. EXACT PROMPT SENT TO GEMINI (GROUNDED STRUCTURE):
 --------------------------------------------------------------------------------
 ================================================================================
 SYSTEM ROLE:
@@ -78,32 +78,23 @@ GROUNDING DIRECTIVES (CRITICAL):
 1. Everything you state MUST originate strictly from the RETRIEVED KNOWLEDGE NODES, PLANNER OUTPUT, or LEARNING PROFILE below.
 2. Do NOT fabricate facts, invent unprovided exam dates, or guess missing concepts.
 3. Do NOT use template headers or mention internal agent names ('PlannerAgent', 'ReflectionAgent', 'DocumentAgent').
-4. Adapt your explanation depth based on the student's mastery level (Intermediate (40-75%)).
+
+ADAPTIVE PEDAGOGY (INTERMEDIATE TIER):
+• Provide clear definitions balanced with executable SQL code snippets.
+• Explain both core theory and practical database design implications.
+• Highlight common student misconceptions directly.
 ================================================================================
 
 CURRENT GOAL & CONTEXT:
   • User Query: "Hi"
-  • Intent: greeting | Subject Focus: DBMS
-  • Student Mastery Tier: Intermediate (40-75%) (65.0%) | Retention: 100.0%
+  • Subject Focus: DBMS
+  • Intent: greeting
+  • Student Mastery Tier: Intermediate (65%) | Retention: 100%
 
 RECENT CONVERSATION HISTORY (Pruned):
-CONVERSATION HISTORY (Previous turns with this student):
+CONVERSATION HISTORY (Recent turns with student):
 Student: Hi
 
-
-ANALYTICS SUMMARY:
-{
-  "user_id": 1,
-  "completion_rate": 0.0,
-  "weekly_study_hours": 0.0,
-  "burnout_risk_level": "low",
-  "predicted_exam_readiness": 0.0,
-  "weakest_subject": "Database Management Systems",
-  "insights": [
-    "Balanced workload \u2014 healthy study pace detected.",
-    "Overall completion rate is 0.0%."
-  ]
-}
 
 TASK:
 Generate a helpful, grounded Markdown response directly addressing the user query.

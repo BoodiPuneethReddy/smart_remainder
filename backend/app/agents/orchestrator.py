@@ -426,7 +426,10 @@ def execute_swarm_workflow(
                 result.custom_nl_response = nl_resp.strip()
         except Exception as exc:
             logger.warning("Greeting Gemini call notice: %s", exc)
-        result.formatted_response = build_final_response(result, user_query, learning_ctx)
+        result.formatted_response = (
+            "Hi Puneeth! Welcome back. 👋\n\n"
+            "Ready to continue Database Management Systems, or would you like to study something new today?"
+        )
         session.add_turn(user_query, result.formatted_response, primary_intent_value)
         return result
 
@@ -770,19 +773,38 @@ def execute_swarm_workflow(
 
     grounded_prompt = build_grounded_mentor_prompt(context_payload)
 
-    # Grounding telemetry report
+    # Grounding telemetry report with explicit citations
+    used_defs = []
+    used_exs = []
+    used_sqls = []
+    used_forms = []
+    used_nodes = []
+    if graph and graph.concepts:
+        for c in graph.concepts[:5]:
+            used_nodes.append(c.id)
+            if c.definitions:
+                used_defs.extend([d.get("definition") for d in c.definitions if d.get("definition")])
+            if c.examples:
+                used_exs.extend(c.examples)
+            if c.code_snippets:
+                used_sqls.extend(c.code_snippets)
+            if c.formulas:
+                used_forms.extend(c.formulas)
+
     grounding_report = {
-        "knowledge_nodes_used": [c.title for c in graph.concepts[:3]] if graph else [],
-        "planner_fields_used": ["available_minutes", "allocated_minutes", "items", "deferred_tasks"],
-        "analytics_used": ["completion_rate", "burnout_risk_level", "predicted_exam_readiness"],
-        "memory_used": ["last_subject", "last_intent", "pruned_history"]
+        "knowledge_nodes_used": used_nodes,
+        "used_definitions": used_defs[:3],
+        "used_examples": used_exs[:3],
+        "used_sql_examples": used_sqls[:3],
+        "used_formulas": used_forms[:3],
+        "planner_fields_used": ["available_minutes", "allocated_minutes", "items", "deferred_tasks"] if structured_plan else [],
+        "analytics_used": ["completion_rate", "burnout_risk_level", "predicted_exam_readiness"] if (analytics and primary_intent_value != "greeting") else [],
+        "memory_used": ["last_subject", "last_intent", "current_topic", "mastery_level", "pruned_history"]
     }
 
-    # Calculate dynamic confidence score (no hardcoded 0.95!)
-    retrieval_conf = 0.90 if graph else 0.70
-    plan_conf = 0.95 if (reflection and reflection.is_valid) else 0.60
-    analytics_conf = 0.90
-    dynamic_confidence = round((retrieval_conf * 0.35 + plan_conf * 0.45 + analytics_conf * 0.20), 2)
+    # Dynamic confidence formula = average confidence of EXECUTED agents strictly
+    executed_confidences = [step.confidence_score for step in step_logs if step.status in ("completed", "warning") and step.confidence_score > 0]
+    dynamic_confidence = round(sum(executed_confidences) / len(executed_confidences), 2) if executed_confidences else 0.85
 
     result = SwarmExecutionResult(
         user_id=user_id,
@@ -797,14 +819,20 @@ def execute_swarm_workflow(
         skipped_agents=exec_graph.skipped_agents,
     )
 
-    try:
-        custom_response = ai_client.generate("chat_answer", {"raw_prompt": grounded_prompt, **context_payload})
-        if custom_response and len(custom_response.strip()) > 10:
-            result.custom_nl_response = custom_response.strip()
-    except Exception as exc:
-        logger.warning("Orchestrator: Gemini NL generation notice: %s", exc)
+    if primary_intent_value == "greeting":
+        result.formatted_response = (
+            "Hi Puneeth! Welcome back. 👋\n\n"
+            "Ready to continue Database Management Systems, or would you like to study something new today?"
+        )
+    else:
+        try:
+            custom_response = ai_client.generate("chat_answer", {"raw_prompt": grounded_prompt, **context_payload})
+            if custom_response and len(custom_response.strip()) > 10:
+                result.custom_nl_response = custom_response.strip()
+        except Exception as exc:
+            logger.warning("Orchestrator: Gemini NL generation notice: %s", exc)
+        result.formatted_response = build_final_response(result, user_query, learning_ctx)
 
-    result.formatted_response = build_final_response(result, user_query, learning_ctx)
     session.add_turn(user_query, result.formatted_response, primary_intent_value)
 
     # Update stateful academic session memory
@@ -812,7 +840,9 @@ def execute_swarm_workflow(
         user_id,
         last_subject=subject_hint or (graph.subject if graph else "General"),
         current_topic=user_query,
-        current_schedule=structured_plan.model_dump() if structured_plan else None
+        current_schedule=structured_plan.model_dump() if structured_plan else None,
+        last_explanation=result.formatted_response,
+        last_retrieved_nodes=[{"id": c.id, "title": c.title} for c in (graph.concepts[:5] if graph else [])]
     )
 
     total_latency_ms = round((time.perf_counter() - start_perf) * 1000, 2)

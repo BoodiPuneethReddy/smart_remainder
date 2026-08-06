@@ -5,6 +5,7 @@ Holds persistent academic state across multi-turn sessions:
   - Current subject, topic, chapter, document
   - Current goal, strategy, weak concept, and schedule
   - Mastery level (Beginner, Intermediate, Advanced)
+  - Last explanation, last example, last quiz, last mistake, last retrieved nodes
   - Full turn history for multi-turn reasoning ("Why?", "Make it 30 mins", "Quiz me", "Make it harder")
 """
 
@@ -44,6 +45,13 @@ class ConversationSession:
     current_weak_concept: Optional[str] = None
     mastery_level: str = "Intermediate"          # Beginner (<40%), Intermediate (40-75%), Advanced (>75%)
 
+    # Contextual Follow-up Memory Fields
+    last_explanation: Optional[str] = None
+    last_example: Optional[str] = None
+    last_quiz: Optional[str] = None
+    last_mistake: Optional[str] = None
+    last_retrieved_nodes: List[Dict[str, Any]] = field(default_factory=list)
+
     history: List[ConversationTurn] = field(default_factory=list)
     conversation_started_at: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc)
@@ -51,7 +59,6 @@ class ConversationSession:
 
     def add_turn(self, query: str, response: str, intent: str) -> None:
         self.history.append(ConversationTurn(user_query=query, bot_response=response, intent=intent))
-        # Retain last 15 turns
         if len(self.history) > 15:
             self.history = self.history[-15:]
         self.last_query = query
@@ -64,7 +71,6 @@ class ConversationSession:
         return " | ".join(f"Q: {t.user_query} → A: {t.bot_response[:60]}..." for t in recent)
 
 
-# Global in-memory store: {user_id: ConversationSession}
 _sessions: Dict[int, ConversationSession] = {}
 
 
